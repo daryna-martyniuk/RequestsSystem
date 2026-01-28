@@ -1,0 +1,158 @@
+﻿<Window x:Class="Requests.UI.Views.EditUserWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="{Binding WindowTitle}" Height="580" Width="420"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize" 
+        Background="White" WindowStyle="None" AllowsTransparency="True">
+
+    <!-- Основний стиль вікна -->
+    <Window.Resources>
+        <SolidColorBrush x:Key="PrimaryBlue" Color="#3498DB"/>
+        <SolidColorBrush x:Key="LightBlue" Color="#ECF5FB"/>
+        <SolidColorBrush x:Key="TextGray" Color="#7F8C8D"/>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="8"/>
+            <Setter Property="Margin" Value="0,5,0,15"/>
+            <Setter Property="BorderBrush" Value="#BDC3C7"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border CornerRadius="5" BorderThickness="1" BorderBrush="{TemplateBinding BorderBrush}" Background="{TemplateBinding Background}">
+                            <ScrollViewer x:Name="PART_ContentHost"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="PasswordBox">
+            <Setter Property="Padding" Value="8"/>
+            <Setter Property="Margin" Value="0,5,0,15"/>
+            <Setter Property="BorderBrush" Value="#BDC3C7"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border CornerRadius="5" BorderThickness="1" BorderBrush="{TemplateBinding BorderBrush}" Background="White">
+                            <ScrollViewer x:Name="PART_ContentHost"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Padding" Value="8"/>
+            <Setter Property="Margin" Value="0,5,0,15"/>
+            <Setter Property="Height" Value="35"/>
+        </Style>
+    </Window.Resources>
+
+    <Border BorderBrush="{StaticResource PrimaryBlue}" BorderThickness="1" CornerRadius="10" Background="White">
+        <Grid Margin="25">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <!-- Заголовок -->
+                <RowDefinition Height="*"/>
+                <!-- Поля -->
+                <RowDefinition Height="Auto"/>
+                <!-- Кнопки -->
+            </Grid.RowDefinitions>
+
+            <!-- Заголовок -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,25">
+                <TextBlock Text="{Binding WindowTitle}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource PrimaryBlue}" HorizontalAlignment="Center"/>
+                <Rectangle Height="2" Width="50" Fill="{StaticResource PrimaryBlue}" Margin="0,10,0,0" HorizontalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Поля форми -->
+            <StackPanel Grid.Row="1">
+
+                <!-- Логін -->
+                <TextBlock Text="Логін (Username)" Foreground="{StaticResource TextGray}" FontWeight="SemiBold"/>
+                <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <!-- Пароль (тільки для нових) -->
+                <StackPanel Visibility="{Binding PasswordVisibility}">
+                    <TextBlock Text="Пароль" Foreground="{StaticResource TextGray}" FontWeight="SemiBold"/>
+                    <PasswordBox x:Name="UserPasswordBox"/>
+                </StackPanel>
+
+                <!-- ПІБ -->
+                <TextBlock Text="ПІБ Співробітника" Foreground="{StaticResource TextGray}" FontWeight="SemiBold"/>
+                <TextBox Text="{Binding FullName, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <!-- Email -->
+                <TextBlock Text="Електронна пошта" Foreground="{StaticResource TextGray}" FontWeight="SemiBold"/>
+                <TextBox Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <!-- Відділ та Посада -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="15"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Відділ" Foreground="{StaticResource TextGray}" FontWeight="SemiBold"/>
+                        <ComboBox ItemsSource="{Binding Departments}" SelectedItem="{Binding SelectedDepartment}" DisplayMemberPath="Name"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Посада" Foreground="{StaticResource TextGray}" FontWeight="SemiBold"/>
+                        <ComboBox ItemsSource="{Binding Positions}" SelectedItem="{Binding SelectedPosition}" DisplayMemberPath="Name"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Активність -->
+                <CheckBox IsChecked="{Binding IsActive}" Content="Акаунт активний" Margin="0,5" Foreground="{StaticResource TextGray}" FontSize="14">
+                    <CheckBox.LayoutTransform>
+                        <ScaleTransform ScaleX="1.2" ScaleY="1.2"/>
+                    </CheckBox.LayoutTransform>
+                </CheckBox>
+            </StackPanel>
+
+            <!-- Кнопки -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,30,0,0">
+                <Button Content="Скасувати" Command="{Binding CancelCommand}" IsCancel="True" 
+                        Background="Transparent" Foreground="{StaticResource TextGray}" BorderThickness="0" 
+                        FontSize="14" FontWeight="SemiBold" Padding="15,5" Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <Button Content="Зберегти" Command="{Binding SaveCommand}" CommandParameter="{Binding ElementName=UserPasswordBox}"
+                        Background="{StaticResource PrimaryBlue}" Foreground="White" BorderThickness="0"
+                        FontSize="14" FontWeight="Bold" Padding="30,10" Margin="15,0,0,0" Cursor="Hand">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="5"/>
+                        </Style>
+                    </Button.Resources>
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#2980B9"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

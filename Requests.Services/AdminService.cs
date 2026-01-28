@@ -14,15 +14,21 @@ namespace Requests.Services
         private readonly AppDbContext _context;
         private readonly UserRepository _userRepository;
         private readonly IRepository<AuditLog> _auditRepository;
+        private readonly IRepository<Department> _departmentRepository;
+        private readonly IRepository<Position> _positionRepository;
 
         public AdminService(
             AppDbContext context,
             UserRepository userRepository,
-            IRepository<AuditLog> auditRepository)
+            IRepository<AuditLog> auditRepository,
+            IRepository<Department> departmentRepository,
+            IRepository<Position> positionRepository)
         {
             _context = context;
             _userRepository = userRepository;
             _auditRepository = auditRepository;
+            _departmentRepository = departmentRepository;
+            _positionRepository = positionRepository;
         }
 
         public void CreateUser(User user, string rawPassword, int adminId)
@@ -78,10 +84,23 @@ namespace Requests.Services
             });
         }
 
-        public IEnumerable<User> GetAllUsers()
+        public IEnumerable<User> GetAllUsers() => _userRepository.GetAll();
+
+        public void CreateDepartment(string name, int adminId)
         {
-            return _userRepository.GetAll();
+            _departmentRepository.Add(new Department { Name = name });
+            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Created Department: {name}" });
         }
+
+        public void CreatePosition(string name, int adminId)
+        {
+            _positionRepository.Add(new Position { Name = name });
+            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Created Position: {name}" });
+        }
+
+        public IEnumerable<Department> GetAllDepartments() => _departmentRepository.GetAll();
+        public IEnumerable<Position> GetAllPositions() => _positionRepository.GetAll();
+
 
         public void BackupDatabase(string folderPath, int adminId)
         {

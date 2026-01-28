@@ -35,11 +35,7 @@ namespace Requests.Services
         public IEnumerable<Request> GetPendingApprovals(int managerDepartmentId)
         {
             var pendingStatus = _statusRepository.Find(s => s.Name == ServiceConstants.StatusPendingApproval).First();
-
-            return _requestRepository.Find(r =>
-                r.Author.DepartmentId == managerDepartmentId &&
-                r.GlobalStatusId == pendingStatus.Id
-            );
+            return _requestRepository.Find(r => r.Author.DepartmentId == managerDepartmentId && r.GlobalStatusId == pendingStatus.Id);
         }
 
         public void ApproveRequest(int requestId, int managerId)
@@ -49,6 +45,11 @@ namespace Requests.Services
 
             var newStatus = _statusRepository.Find(s => s.Name == ServiceConstants.StatusNew).First();
             request.GlobalStatusId = newStatus.Id;
+
+            foreach (var task in request.DepartmentTasks)
+            {
+                if (task.AssignedAt == null) task.AssignedAt = DateTime.Now;
+            }
 
             _requestRepository.Update(request);
             _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = "Approved Request" });
@@ -61,16 +62,12 @@ namespace Requests.Services
 
             var rejected = _statusRepository.Find(s => s.Name == ServiceConstants.StatusRejected).First();
             request.GlobalStatusId = rejected.Id;
-
             _requestRepository.Update(request);
+
             _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = "Rejected Request" });
         }
 
-
-        public IEnumerable<Request> GetIncomingRequests(int departmentId)
-        {
-            return _requestRepository.GetByExecutorDepartment(departmentId);
-        }
+        public IEnumerable<Request> GetIncomingRequests(int departmentId) => _requestRepository.GetByExecutorDepartment(departmentId);
 
         public void AssignExecutor(int departmentTaskId, int employeeId, int managerId)
         {
@@ -89,9 +86,6 @@ namespace Requests.Services
             _auditRepository.Add(new AuditLog { UserId = managerId, Action = $"Assigned User {employeeId} to Task {departmentTaskId}" });
         }
 
-        public IEnumerable<User> GetMyEmployees(int departmentId)
-        {
-            return _userRepository.GetByDepartment(departmentId);
-        }
+        public IEnumerable<User> GetMyEmployees(int departmentId) => _userRepository.GetByDepartment(departmentId);
     }
 }

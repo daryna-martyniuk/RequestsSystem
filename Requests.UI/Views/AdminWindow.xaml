@@ -1,0 +1,293 @@
+﻿<Window x:Class="Requests.UI.Views.AdminWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Requests.UI.ViewModels"
+        mc:Ignorable="d"
+        Title="Admin Dashboard | Requests System" Height="750" Width="1200"
+        WindowStartupLocation="CenterScreen" Background="{StaticResource BackgroundLight}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- Хедер -->
+            <RowDefinition Height="*"/>
+            <!-- Контент -->
+        </Grid.RowDefinitions>
+
+        <!-- ВЕРХНЯ ПАНЕЛЬ (Header) -->
+        <Border Grid.Row="0" Background="{StaticResource DarkHeader}" Height="65">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- Лого -->
+                    <ColumnDefinition Width="*"/>
+                    <!-- Меню -->
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- Дії -->
+                </Grid.ColumnDefinitions>
+
+                <!-- Логотип -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="25,0">
+                    <TextBlock Text="REQUESTS" Foreground="White" FontSize="22" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <TextBlock Text=".SYS" Foreground="{StaticResource PrimaryBlue}" FontSize="22" FontWeight="Bold" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Меню навігації -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="40,0,0,0">
+                    <Button Content="Співробітники" Command="{Binding SwitchViewCommand}" CommandParameter="Users" Style="{StaticResource NavButtonStyle}"/>
+                    <Button Content="Структура компанії" Command="{Binding SwitchViewCommand}" CommandParameter="Structure" Style="{StaticResource NavButtonStyle}"/>
+                    <Button Content="Журнал подій" Command="{Binding SwitchViewCommand}" CommandParameter="Logs" Style="{StaticResource NavButtonStyle}"/>
+                </StackPanel>
+
+                <!-- Праві кнопки -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,25,0">
+                    <Button Content="💾 Бекап" Command="{Binding BackupCommand}" 
+                            Style="{StaticResource ActionBtnStyle}" Background="{StaticResource WarningOrange}" Margin="0,0,10,0"/>
+                    <Button Content="Вихід" Command="{Binding LogoutCommand}" 
+                            Style="{StaticResource ActionBtnStyle}" Background="{StaticResource DangerRed}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ОСНОВНА РОБОЧА ОБЛАСТЬ -->
+        <Border Grid.Row="1" Margin="30" Background="{StaticResource CardBackground}" CornerRadius="10" Effect="{StaticResource CardShadow}">
+            <Grid Margin="30">
+
+                <Grid Visibility="{Binding IsUsersVisible}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,25">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="Управління персоналом" FontSize="26" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
+
+                        <Border Grid.Column="1" Background="{StaticResource BackgroundLight}" CornerRadius="8" Padding="10,8" Width="350" HorizontalAlignment="Left" Margin="30,0,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="🔍" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" 
+                                         Background="Transparent" BorderThickness="0" 
+                                         VerticalContentAlignment="Center" FontSize="14" Foreground="{StaticResource TextPrimary}"
+                                         Tag="Пошук..."/>
+                            </Grid>
+                        </Border>
+
+                        <Button Grid.Column="2" Content="+ Новий Співробітник" Command="{Binding CreateUserCommand}" 
+                                Style="{StaticResource ActionBtnStyle}" Background="{StaticResource SuccessGreen}"/>
+                    </Grid>
+
+                    <!-- Таблиця користувачів -->
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding UsersView}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60"/>
+
+                            <DataGridTemplateColumn Header="Співробітник" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Vertical" Margin="5">
+                                            <TextBlock Text="{Binding FullName}" FontWeight="SemiBold" FontSize="14" Foreground="{StaticResource TextPrimary}"/>
+                                            <TextBlock Text="{Binding Email}" Foreground="{StaticResource TextSecondary}" FontSize="12"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Логін" Binding="{Binding Username}" Width="150" Foreground="{StaticResource TextPrimary}"/>
+
+                            <!-- Стилізовані колонки відділу -->
+                            <DataGridTemplateColumn Header="Відділ" Width="200">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#ECF5FB" CornerRadius="4" Padding="8,4" HorizontalAlignment="Left">
+                                            <TextBlock Text="{Binding Department.Name}" Foreground="{StaticResource PrimaryBlue}" FontWeight="Medium"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Посада" Binding="{Binding Position.Name}" Width="200"/>
+
+                            <DataGridTemplateColumn Header="Статус" Width="120">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border CornerRadius="12" Padding="10,4" HorizontalAlignment="Center">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="#95A5A6"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                            <Setter Property="Background" Value="#E8F8F5"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                                            <Setter Property="Background" Value="#FDEDEC"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock FontWeight="Bold" FontSize="12">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="Неактивний"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource DangerRed}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                <Setter Property="Text" Value="Активний"/>
+                                                                <Setter Property="Foreground" Value="{StaticResource SuccessGreen}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Дії" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="✎" ToolTip="Редагувати"
+                                                Command="{Binding DataContext.EditUserCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource ActionBtnStyle}" Background="{StaticResource PrimaryBlue}" Padding="10,5" FontSize="16"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+
+                <!-- ВКЛАДКА 2: СТРУКТУРА (Відділи та Посади) -->
+                <Grid Visibility="{Binding IsStructureVisible}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Налаштування структури компанії" FontSize="26" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,25"/>
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="30"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Background="{StaticResource BackgroundLight}" CornerRadius="10" Padding="20">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="🏢 Відділи" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,15"/>
+
+                                <!-- Додавання -->
+                                <Grid Grid.Row="1" Margin="0,0,0,20">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Text="{Binding NewDepartmentName, UpdateSourceTrigger=PropertyChanged}" 
+                                             Tag="Назва відділу" Padding="10" FontSize="14"/>
+                                    <Button Grid.Column="1" Content="Додати" Command="{Binding CreateDepartmentCommand}" 
+                                            Style="{StaticResource ActionBtnStyle}" Background="{StaticResource DarkHeader}" Margin="10,0,0,0"/>
+                                </Grid>
+
+                                <ListBox Grid.Row="2" ItemsSource="{Binding Departments}" BorderThickness="0" Background="Transparent" 
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="White" CornerRadius="6" Padding="15,10" Margin="0,0,0,8" BorderThickness="1" BorderBrush="#E0E0E0">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Id}" Foreground="#BDC3C7" FontWeight="Bold" Margin="0,0,15,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="2" Background="{StaticResource BackgroundLight}" CornerRadius="10" Padding="20">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="💼 Посади" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,15"/>
+
+                                <Grid Grid.Row="1" Margin="0,0,0,20">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Text="{Binding NewPositionName, UpdateSourceTrigger=PropertyChanged}" 
+                                             Tag="Назва посади" Padding="10" FontSize="14"/>
+                                    <Button Grid.Column="1" Content="Додати" Command="{Binding CreatePositionCommand}" 
+                                            Style="{StaticResource ActionBtnStyle}" Background="{StaticResource DarkHeader}" Margin="10,0,0,0"/>
+                                </Grid>
+
+                                <ListBox Grid.Row="2" ItemsSource="{Binding Positions}" BorderThickness="0" Background="Transparent">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="White" CornerRadius="6" Padding="15,10" Margin="0,0,0,8" BorderThickness="1" BorderBrush="#E0E0E0">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Id}" Foreground="#BDC3C7" FontWeight="Bold" Margin="0,0,15,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <Grid Visibility="{Binding IsLogsVisible}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Системний журнал дій (Audit Trail)" FontSize="26" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,25"/>
+
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding SystemLogs}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Час події" Binding="{Binding Timestamp, StringFormat='dd.MM.yyyy HH:mm:ss'}" Width="180" FontWeight="SemiBold"/>
+                            <DataGridTextColumn Header="ID Юзера" Binding="{Binding UserId}" Width="100"/>
+                            <DataGridTextColumn Header="Дія" Binding="{Binding Action}" Width="*"/>
+                            <DataGridTextColumn Header="Request ID" Binding="{Binding RequestId}" Width="100"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

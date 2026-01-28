@@ -29,23 +29,20 @@ namespace Requests.Services
             _auditRepository = auditRepository;
         }
 
-        public IEnumerable<Request> GetAllRequestsSystemWide()
-        {
-            return _requestRepository.GetAll();
-        }
+        public IEnumerable<Request> GetAllRequestsSystemWide() => _requestRepository.GetAll();
 
         public Dictionary<string, int> GetGlobalStats()
         {
-            var all = _requestRepository.GetAll();
-            return all.GroupBy(r => r.GlobalStatus.Name)
-                      .ToDictionary(g => g.Key, g => g.Count());
+            return _requestRepository.GetAll()
+                .GroupBy(r => r.GlobalStatus.Name)
+                .ToDictionary(g => g.Key, g => g.Count());
         }
 
         public void CreateStrategicRequest(Request request, int directorId, List<int> targetDepartments)
         {
             request.AuthorId = directorId;
             request.CreatedAt = DateTime.Now;
-            request.IsStrategic = true; 
+            request.IsStrategic = true;
 
             var statusNew = _statusRepository.Find(s => s.Name == ServiceConstants.StatusNew).First();
             request.GlobalStatusId = statusNew.Id;
@@ -54,13 +51,14 @@ namespace Requests.Services
             request.PriorityId = priorityCrit.Id;
 
             var taskStatusNew = _statusRepository.Find(s => s.Name == ServiceConstants.TaskStatusNew).First();
+
             foreach (var depId in targetDepartments)
             {
                 request.DepartmentTasks.Add(new DepartmentTask
                 {
                     DepartmentId = depId,
                     StatusId = taskStatusNew.Id,
-                    AssignedAt = DateTime.Now
+                    AssignedAt = DateTime.Now 
                 });
             }
 
