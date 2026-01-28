@@ -21,6 +21,7 @@ namespace Requests.Services
         public User? Login(string username, string password)
         {
             var user = _userRepository.GetByUsername(username);
+
             if (user != null && user.PasswordHash == ComputeHash(password) && user.IsActive)
             {
                 _auditRepository.Add(new AuditLog
@@ -31,31 +32,21 @@ namespace Requests.Services
                 });
                 return user;
             }
-
             return null;
         }
-
-        public bool IsAdmin(User user) => user?.IsSystemAdmin ?? false;
 
         public void ChangePassword(int userId, string oldPassword, string newPassword)
         {
             var user = _userRepository.GetById(userId);
-            if (user == null) throw new Exception("Користувача не знайдено");
+            if (user == null) return;
 
             if (user.PasswordHash != ComputeHash(oldPassword))
-            {
-                throw new InvalidOperationException("Старий пароль введено неправильно.");
-            }
+                throw new Exception("Старий пароль невірний");
 
             user.PasswordHash = ComputeHash(newPassword);
             _userRepository.Update(user);
 
-            _auditRepository.Add(new AuditLog
-            {
-                UserId = user.Id,
-                Action = "Password Changed",
-                Timestamp = DateTime.Now
-            });
+            _auditRepository.Add(new AuditLog { UserId = user.Id, Action = "Password Changed" });
         }
 
         public static string ComputeHash(string input)
@@ -64,10 +55,7 @@ namespace Requests.Services
             {
                 var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(input));
                 var builder = new StringBuilder();
-                foreach (var b in bytes)
-                {
-                    builder.Append(b.ToString("x2"));
-                }
+                foreach (var b in bytes) builder.Append(b.ToString("x2"));
                 return builder.ToString();
             }
         }

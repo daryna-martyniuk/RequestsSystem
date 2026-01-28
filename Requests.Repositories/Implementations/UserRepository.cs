@@ -27,5 +27,23 @@ namespace Requests.Repositories.Implementations
                 .Include(u => u.Position)
                 .ToList();
         }
+
+        public IEnumerable<User> GetByDepartment(int departmentId)
+        {
+            return _dbSet
+                .Where(u => u.DepartmentId == departmentId)
+                .Include(u => u.Department)
+                .Include(u => u.Position)
+                .ToList();
+        }
+
+        public IEnumerable<User> GetByDepartmentName(string departmentName)
+        {
+            return _dbSet
+                .Include(u => u.Department)
+                .Include(u => u.Position)
+                .Where(u => u.Department.Name == departmentName)
+                .ToList();
+        }
     }
 }
