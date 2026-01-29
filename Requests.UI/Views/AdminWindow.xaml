@@ -11,38 +11,28 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <!-- Хедер -->
             <RowDefinition Height="*"/>
-            <!-- Контент -->
         </Grid.RowDefinitions>
-
-        <!-- ВЕРХНЯ ПАНЕЛЬ (Header) -->
-        <Border Grid.Row="0" Background="{StaticResource DarkHeader}" Height="65">
+        <Border Grid.Row="0" Background="{StaticResource HeaderBackground}" Height="70" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Лого -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Меню -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Дії -->
                 </Grid.ColumnDefinitions>
 
-                <!-- Логотип -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="25,0">
-                    <TextBlock Text="REQUESTS" Foreground="White" FontSize="22" FontWeight="Bold" VerticalAlignment="Center"/>
-                    <TextBlock Text=".SYS" Foreground="{StaticResource PrimaryBlue}" FontSize="22" FontWeight="Bold" VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="30,0">
+                    <TextBlock Text="REQUESTS" Foreground="{StaticResource TextPrimary}" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <TextBlock Text=".SYS" Foreground="{StaticResource PrimaryBlue}" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <!-- Меню навігації -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="40,0,0,0">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="20,0,0,0">
                     <Button Content="Співробітники" Command="{Binding SwitchViewCommand}" CommandParameter="Users" Style="{StaticResource NavButtonStyle}"/>
                     <Button Content="Структура компанії" Command="{Binding SwitchViewCommand}" CommandParameter="Structure" Style="{StaticResource NavButtonStyle}"/>
                     <Button Content="Журнал подій" Command="{Binding SwitchViewCommand}" CommandParameter="Logs" Style="{StaticResource NavButtonStyle}"/>
                 </StackPanel>
 
-                <!-- Праві кнопки -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,25,0">
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,30,0">
                     <Button Content="💾 Бекап" Command="{Binding BackupCommand}" 
                             Style="{StaticResource ActionBtnStyle}" Background="{StaticResource WarningOrange}" Margin="0,0,10,0"/>
                     <Button Content="Вихід" Command="{Binding LogoutCommand}" 
@@ -51,7 +41,6 @@
             </Grid>
         </Border>
 
-        <!-- ОСНОВНА РОБОЧА ОБЛАСТЬ -->
         <Border Grid.Row="1" Margin="30" Background="{StaticResource CardBackground}" CornerRadius="10" Effect="{StaticResource CardShadow}">
             <Grid Margin="30">
 
@@ -68,7 +57,10 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="Управління персоналом" FontSize="26" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
+                        <StackPanel>
+                            <TextBlock Text="Співробітники" FontSize="26" FontWeight="Bold" Foreground="{StaticResource TextPrimary}"/>
+                            <TextBlock Text="Управління обліковими записами" FontSize="14" Foreground="{StaticResource TextSecondary}" Margin="0,5,0,0"/>
+                        </StackPanel>
 
                         <Border Grid.Column="1" Background="{StaticResource BackgroundLight}" CornerRadius="8" Padding="10,8" Width="350" HorizontalAlignment="Left" Margin="30,0,0,0">
                             <Grid>
@@ -88,11 +80,11 @@
                                 Style="{StaticResource ActionBtnStyle}" Background="{StaticResource SuccessGreen}"/>
                     </Grid>
 
-                    <!-- Таблиця користувачів -->
                     <DataGrid Grid.Row="1" ItemsSource="{Binding UsersView}">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60"/>
 
+                            
                             <DataGridTemplateColumn Header="Співробітник" Width="*">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -106,11 +98,10 @@
 
                             <DataGridTextColumn Header="Логін" Binding="{Binding Username}" Width="150" Foreground="{StaticResource TextPrimary}"/>
 
-                            <!-- Стилізовані колонки відділу -->
                             <DataGridTemplateColumn Header="Відділ" Width="200">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border Background="#ECF5FB" CornerRadius="4" Padding="8,4" HorizontalAlignment="Left">
+                                        <Border Background="{StaticResource HeaderBackground}" CornerRadius="4" Padding="8,4" HorizontalAlignment="Left">
                                             <TextBlock Text="{Binding Department.Name}" Foreground="{StaticResource PrimaryBlue}" FontWeight="Medium"/>
                                         </Border>
                                     </DataTemplate>
@@ -129,9 +120,11 @@
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsActive}" Value="True">
                                                             <Setter Property="Background" Value="#E8F8F5"/>
+                                                           
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding IsActive}" Value="False">
                                                             <Setter Property="Background" Value="#FDEDEC"/>
+                                                           
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -169,7 +162,6 @@
                     </DataGrid>
                 </Grid>
 
-                <!-- ВКЛАДКА 2: СТРУКТУРА (Відділи та Посади) -->
                 <Grid Visibility="{Binding IsStructureVisible}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -195,7 +187,6 @@
 
                                 <TextBlock Text="🏢 Відділи" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,15"/>
 
-                                <!-- Додавання -->
                                 <Grid Grid.Row="1" Margin="0,0,0,20">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -204,20 +195,20 @@
                                     <TextBox Text="{Binding NewDepartmentName, UpdateSourceTrigger=PropertyChanged}" 
                                              Tag="Назва відділу" Padding="10" FontSize="14"/>
                                     <Button Grid.Column="1" Content="Додати" Command="{Binding CreateDepartmentCommand}" 
-                                            Style="{StaticResource ActionBtnStyle}" Background="{StaticResource DarkHeader}" Margin="10,0,0,0"/>
+                                            Style="{StaticResource ActionBtnStyle}" Background="{StaticResource PrimaryBlue}" Margin="10,0,0,0"/>
                                 </Grid>
 
                                 <ListBox Grid.Row="2" ItemsSource="{Binding Departments}" BorderThickness="0" Background="Transparent" 
                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="White" CornerRadius="6" Padding="15,10" Margin="0,0,0,8" BorderThickness="1" BorderBrush="#E0E0E0">
+                                            <Border Background="White" CornerRadius="6" Padding="15,10" Margin="0,0,0,8" BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding Id}" Foreground="#BDC3C7" FontWeight="Bold" Margin="0,0,15,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{Binding Id}" Foreground="{StaticResource TextSecondary}" FontWeight="Bold" Margin="0,0,15,0" VerticalAlignment="Center"/>
                                                     <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
                                                 </Grid>
                                             </Border>
@@ -245,19 +236,19 @@
                                     <TextBox Text="{Binding NewPositionName, UpdateSourceTrigger=PropertyChanged}" 
                                              Tag="Назва посади" Padding="10" FontSize="14"/>
                                     <Button Grid.Column="1" Content="Додати" Command="{Binding CreatePositionCommand}" 
-                                            Style="{StaticResource ActionBtnStyle}" Background="{StaticResource DarkHeader}" Margin="10,0,0,0"/>
+                                            Style="{StaticResource ActionBtnStyle}" Background="{StaticResource PrimaryBlue}" Margin="10,0,0,0"/>
                                 </Grid>
 
                                 <ListBox Grid.Row="2" ItemsSource="{Binding Positions}" BorderThickness="0" Background="Transparent">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="White" CornerRadius="6" Padding="15,10" Margin="0,0,0,8" BorderThickness="1" BorderBrush="#E0E0E0">
+                                            <Border Background="White" CornerRadius="6" Padding="15,10" Margin="0,0,0,8" BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding Id}" Foreground="#BDC3C7" FontWeight="Bold" Margin="0,0,15,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{Binding Id}" Foreground="{StaticResource TextSecondary}" FontWeight="Bold" Margin="0,0,15,0" VerticalAlignment="Center"/>
                                                     <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
                                                 </Grid>
                                             </Border>
