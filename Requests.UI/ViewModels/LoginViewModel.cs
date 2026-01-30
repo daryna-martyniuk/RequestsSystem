@@ -23,7 +23,7 @@ namespace Requests.UI.ViewModels
             _authService = new AuthService(userRepo, auditRepo);
 
             LoginCommand = new RelayCommand(ExecuteLogin);
-            CloseCommand = new RelayCommand(ExecuteClose); 
+            CloseCommand = new RelayCommand(ExecuteClose);
         }
 
         public string Username
@@ -39,7 +39,7 @@ namespace Requests.UI.ViewModels
         }
 
         public ICommand LoginCommand { get; }
-        public ICommand CloseCommand { get; } 
+        public ICommand CloseCommand { get; }
 
         private void ExecuteLogin(object parameter)
         {
@@ -56,24 +56,13 @@ namespace Requests.UI.ViewModels
 
             if (user != null)
             {
-                if (user.IsSystemAdmin)
-                {
-                    var adminWindow = new AdminWindow(user);
-                    adminWindow.Show();
-                }
-                else if (user.Position.Name == ServiceConstants.PositionDirector)
-                {
-                    MessageBox.Show("Вікно Директора ще в розробці");
-                }
-                else if (user.Position.Name == ServiceConstants.PositionHead)
-                {
-                    MessageBox.Show("Вікно Керівника ще в розробці");
-                }
-                else
-                {
-                    MessageBox.Show($"Вітаємо, {user.FullName}! Вікно Співробітника в розробці.");
-                }
+                // УСПІШНИЙ ВХІД
+                // Відкриваємо DashboardWindow незалежно від ролі.
+                // DashboardWindow сам вирішить, які вкладки показувати (Адмін/Керівник тощо)
+                var dashboard = new DashboardWindow(user);
+                dashboard.Show();
 
+                // Закриваємо вікно логіну
                 Application.Current.Windows[0].Close();
             }
             else

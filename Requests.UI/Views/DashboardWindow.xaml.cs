@@ -4,12 +4,12 @@ using System.Windows;
 
 namespace Requests.UI.Views
 {
-    public partial class AdminWindow : Window
+    public partial class DashboardWindow : Window
     {
-        public AdminWindow(User currentUser)
+        public DashboardWindow(User currentUser)
         {
             InitializeComponent();
-            DataContext = new AdminViewModel(currentUser);
+            DataContext = new DashboardViewModel(currentUser);
         }
     }
 }

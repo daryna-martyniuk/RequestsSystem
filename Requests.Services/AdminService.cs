@@ -39,18 +39,13 @@ namespace Requests.Services
             user.PasswordHash = AuthService.ComputeHash(rawPassword);
             _userRepository.Add(user);
 
-            _auditRepository.Add(new AuditLog
-            {
-                UserId = adminId,
-                Action = $"Created User {user.Username} in Dep {user.DepartmentId}"
-            });
+            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Created User {user.Username}" });
         }
 
         public void EditUser(User updatedUser, int adminId)
         {
             var existingUser = _userRepository.GetById(updatedUser.Id);
-            if (existingUser == null)
-                throw new InvalidOperationException("Користувача не знайдено.");
+            if (existingUser == null) throw new InvalidOperationException("Користувача не знайдено.");
 
             existingUser.FullName = updatedUser.FullName;
             existingUser.Email = updatedUser.Email;
@@ -58,13 +53,7 @@ namespace Requests.Services
             existingUser.PositionId = updatedUser.PositionId;
 
             _userRepository.Update(existingUser);
-
-            _auditRepository.Add(new AuditLog
-            {
-                UserId = adminId,
-                Action = $"Edited User {existingUser.Username} (ID: {existingUser.Id})",
-                Timestamp = DateTime.Now
-            });
+            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Edited User {existingUser.Username}" });
         }
 
         public void ToggleUserActivity(int userId, bool isActive, int adminId)
@@ -74,48 +63,80 @@ namespace Requests.Services
 
             user.IsActive = isActive;
             _userRepository.Update(user);
-
-            string action = isActive ? "Activated User" : "Deactivated User";
-            _auditRepository.Add(new AuditLog
-            {
-                UserId = adminId,
-                Action = $"{action}: {user.Username}",
-                Timestamp = DateTime.Now
-            });
+            string action = isActive ? "Activated" : "Deactivated";
+            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"{action} User {user.Username}" });
         }
 
         public IEnumerable<User> GetAllUsers() => _userRepository.GetAll();
 
         public void CreateDepartment(string name, int adminId)
         {
+            if (_departmentRepository.Find(d => d.Name == name).Any())
+                throw new InvalidOperationException("Такий відділ вже існує!");
+
             _departmentRepository.Add(new Department { Name = name });
             _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Created Department: {name}" });
         }
 
+        public void UpdateDepartment(Department department, int adminId)
+        {
+            _departmentRepository.Update(department);
+            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Updated Department: {department.Name}" });
+        }
+
+        public void DeleteDepartment(int id, int adminId)
+        {
+            if (_userRepository.GetByDepartment(id).Any())
+                throw new InvalidOperationException("Не можна видалити відділ, у якому працюють люди! Спочатку переведіть їх.");
+
+            var dept = _departmentRepository.GetById(id);
+            if (dept != null)
+            {
+                _departmentRepository.Delete(id);
+                _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Deleted Department: {dept.Name}" });
+            }
+        }
+
         public void CreatePosition(string name, int adminId)
         {
+            if (_positionRepository.Find(p => p.Name == name).Any())
+                throw new InvalidOperationException("Така посада вже існує!");
+
             _positionRepository.Add(new Position { Name = name });
             _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Created Position: {name}" });
         }
 
+        public void UpdatePosition(Position position, int adminId)
+        {
+            _positionRepository.Update(position);
+            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Updated Position: {position.Name}" });
+        }
+
+        public void DeletePosition(int id, int adminId)
+        {
+            if (_userRepository.Find(u => u.PositionId == id).Any())
+                throw new InvalidOperationException("Не можна видалити посаду, яку займають люди!");
+
+            var pos = _positionRepository.GetById(id);
+            if (pos != null)
+            {
+                _positionRepository.Delete(id);
+                _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Deleted Position: {pos.Name}" });
+            }
+        }
+
         public IEnumerable<Department> GetAllDepartments() => _departmentRepository.GetAll();
         public IEnumerable<Position> GetAllPositions() => _positionRepository.GetAll();
-
 
         public void BackupDatabase(string folderPath, int adminId)
         {
             var dbName = "RequestsDB";
             var fileName = $"Backup_{DateTime.Now:yyyyMMdd_HHmm}.bak";
             var fullPath = System.IO.Path.Combine(folderPath, fileName);
-
             _context.Database.ExecuteSqlRaw($"BACKUP DATABASE [{dbName}] TO DISK = '{fullPath}'");
-
             _auditRepository.Add(new AuditLog { UserId = adminId, Action = "Database Backup Created" });
         }
 
-        public IEnumerable<AuditLog> GetSystemLogs()
-        {
-            return _auditRepository.GetAll().OrderByDescending(l => l.Timestamp);
-        }
+        public IEnumerable<AuditLog> GetSystemLogs() => _auditRepository.GetAll().OrderByDescending(l => l.Timestamp);
     }
 }
