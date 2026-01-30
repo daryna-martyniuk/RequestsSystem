@@ -35,20 +35,55 @@
         <DataGrid Grid.Row="1" ItemsSource="{Binding MyRequests}">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="№" Binding="{Binding Id}" Width="50"/>
-                <DataGridTextColumn Header="Тема" Binding="{Binding Title}" Width="*"/>
-                <DataGridTextColumn Header="Дата" Binding="{Binding CreatedAt, StringFormat='dd.MM.yyyy'}" Width="100"/>
 
-                <DataGridTemplateColumn Header="Статус" Width="150">
+                <!-- Тема -->
+                <DataGridTemplateColumn Header="Тема" Width="2*">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Border Background="{StaticResource HeaderBackground}" CornerRadius="10" Padding="10,2" HorizontalAlignment="Left">
-                                <TextBlock Text="{Binding GlobalStatus.Name}" Foreground="{StaticResource PrimaryBlue}" FontWeight="Bold"/>
+                            <StackPanel Margin="5">
+                                <TextBlock Text="{Binding Title}" FontWeight="Bold" Foreground="{StaticResource TextPrimary}"/>
+                                <TextBlock Text="{Binding Description}" FontSize="11" Foreground="{StaticResource TextSecondary}" MaxHeight="35" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <!-- Категорія -->
+                <DataGridTextColumn Header="Категорія" Binding="{Binding Category.Name}" Width="120"/>
+
+                <!-- Статус -->
+                <DataGridTemplateColumn Header="Статус" Width="140">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Border Background="{StaticResource HeaderBackground}" CornerRadius="10" Padding="10,4" HorizontalAlignment="Center">
+                                <TextBlock Text="{Binding GlobalStatus.Name}" Foreground="{StaticResource PrimaryBlue}" FontWeight="Bold" FontSize="12"/>
                             </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
+                <!-- Пріоритет -->
                 <DataGridTextColumn Header="Пріоритет" Binding="{Binding Priority.Name}" Width="100"/>
+
+                <!-- Дати -->
+                <DataGridTemplateColumn Header="Створено" Width="100">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding CreatedAt, StringFormat='dd.MM.yyyy'}" VerticalAlignment="Center"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <!-- Кнопка Деталі -->
+                <DataGridTemplateColumn Header="Дії" Width="90">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="👁 Деталі" Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" 
+                                    CommandParameter="{Binding}"
+                                    Style="{StaticResource ActionBtnStyle}" Background="{StaticResource PrimaryBlue}" Padding="0" Height="30" FontSize="12"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
     </Grid>

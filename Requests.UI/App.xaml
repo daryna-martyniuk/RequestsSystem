@@ -20,6 +20,8 @@
        
         <DropShadowEffect x:Key="CardShadow" BlurRadius="10" Direction="270" Color="#BDC3C7" ShadowDepth="2" Opacity="0.3"/>
 
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+
         <Style x:Key="NavButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource PrimaryBlue}"/>

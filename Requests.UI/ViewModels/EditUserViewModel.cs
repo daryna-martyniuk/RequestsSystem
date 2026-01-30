@@ -16,13 +16,13 @@ namespace Requests.UI.ViewModels
         private readonly int _adminId;
         private readonly Action<bool> _closeWindowAction;
 
+        // Поля для редагування
         private string _fullName;
         private string _username;
         private string _email;
         private bool _isActive;
-        private bool _isSystemAdmin; // <-- Нова властивість
+        private bool _isSystemAdmin;
 
-        // Зміни для ComboBox
         private Department _selectedDepartment;
         private Position _selectedPosition;
 
@@ -36,18 +36,18 @@ namespace Requests.UI.ViewModels
             _adminId = adminId;
             _closeWindowAction = closeWindowAction;
 
-            // Завантажуємо списки для вибору
+            // Завантажуємо списки
             Departments = new ObservableCollection<Department>(_adminService.GetAllDepartments());
             Positions = new ObservableCollection<Position>(_adminService.GetAllPositions());
 
-            // Ініціалізація полів
+            // Ініціалізація даних з моделі
             FullName = user.FullName;
             Username = user.Username;
             Email = user.Email;
             IsActive = user.IsActive;
-            IsSystemAdmin = user.IsSystemAdmin; // Ініціалізація прав адміна
+            IsSystemAdmin = user.IsSystemAdmin;
 
-            // Встановлюємо вибрані значення
+            // Вибір поточних значень у списках
             SelectedDepartment = Departments.FirstOrDefault(d => d.Id == user.DepartmentId);
             SelectedPosition = Positions.FirstOrDefault(p => p.Id == user.PositionId);
 
@@ -57,49 +57,21 @@ namespace Requests.UI.ViewModels
 
         public bool IsEditMode => _user.Id != 0;
         public string WindowTitle => IsEditMode ? $"Редагування: {_user.Username}" : "Новий співробітник";
-        public Visibility PasswordVisibility => IsEditMode ? Visibility.Collapsed : Visibility.Visible;
 
-        public string FullName
-        {
-            get => _fullName;
-            set { _fullName = value; OnPropertyChanged(); }
-        }
+        // Пароль видимий ЗАВЖДИ (адмін може захотіти його скинути)
+        public Visibility PasswordVisibility => Visibility.Visible;
 
-        public string Username
-        {
-            get => _username;
-            set { _username = value; OnPropertyChanged(); }
-        }
+        // Підказка для поля пароля
+        public string PasswordPlaceholder => IsEditMode ? "(Залиште пустим, щоб не змінювати)" : "(Обов'язково для нового)";
 
-        public string Email
-        {
-            get => _email;
-            set { _email = value; OnPropertyChanged(); }
-        }
+        public string FullName { get => _fullName; set { _fullName = value; OnPropertyChanged(); } }
+        public string Username { get => _username; set { _username = value; OnPropertyChanged(); } }
+        public string Email { get => _email; set { _email = value; OnPropertyChanged(); } }
+        public bool IsActive { get => _isActive; set { _isActive = value; OnPropertyChanged(); } }
+        public bool IsSystemAdmin { get => _isSystemAdmin; set { _isSystemAdmin = value; OnPropertyChanged(); } }
 
-        public Department SelectedDepartment
-        {
-            get => _selectedDepartment;
-            set { _selectedDepartment = value; OnPropertyChanged(); }
-        }
-
-        public Position SelectedPosition
-        {
-            get => _selectedPosition;
-            set { _selectedPosition = value; OnPropertyChanged(); }
-        }
-
-        public bool IsActive
-        {
-            get => _isActive;
-            set { _isActive = value; OnPropertyChanged(); }
-        }
-
-        public bool IsSystemAdmin
-        {
-            get => _isSystemAdmin;
-            set { _isSystemAdmin = value; OnPropertyChanged(); }
-        }
+        public Department SelectedDepartment { get => _selectedDepartment; set { _selectedDepartment = value; OnPropertyChanged(); } }
+        public Position SelectedPosition { get => _selectedPosition; set { _selectedPosition = value; OnPropertyChanged(); } }
 
         public ICommand SaveCommand { get; }
         public ICommand CancelCommand { get; }
@@ -108,48 +80,59 @@ namespace Requests.UI.ViewModels
         {
             try
             {
-                // Валідація
                 if (SelectedDepartment == null || SelectedPosition == null)
                 {
                     MessageBox.Show("Оберіть відділ та посаду!", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-
                 if (string.IsNullOrWhiteSpace(FullName) || string.IsNullOrWhiteSpace(Username))
                 {
                     MessageBox.Show("Заповніть ПІБ та Логін!", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                // Оновлюємо модель
+                // Оновлюємо об'єкт (крім пароля поки що)
                 _user.FullName = FullName;
                 _user.Username = Username;
                 _user.Email = Email;
                 _user.DepartmentId = SelectedDepartment.Id;
                 _user.PositionId = SelectedPosition.Id;
+                _user.IsSystemAdmin = IsSystemAdmin;
                 _user.IsActive = IsActive;
-                _user.IsSystemAdmin = IsSystemAdmin; // Зберігаємо права адміна
+
+                // Отримуємо пароль з PasswordBox
+                var passwordBox = parameter as PasswordBox;
+                string password = passwordBox?.Password;
 
                 if (IsEditMode)
                 {
+                    // === РЕДАГУВАННЯ ===
                     _adminService.EditUser(_user, _adminId);
 
-                    // Окремо оновлюємо статус активності, якщо змінився
                     if (_user.IsActive != IsActive)
                         _adminService.ToggleUserActivity(_user.Id, IsActive, _adminId);
+
+                    // Зміна пароля ТІЛЬКИ якщо поле не пусте
+                    if (!string.IsNullOrWhiteSpace(password))
+                    {
+                        _adminService.ForceChangePassword(_user.Id, password, _adminId);
+                        MessageBox.Show("Дані та пароль оновлено!", "Успіх");
+                    }
+                    else
+                    {
+                        MessageBox.Show("Дані оновлено (пароль без змін).", "Успіх");
+                    }
                 }
                 else
                 {
-                    var passwordBox = parameter as PasswordBox;
-                    string password = passwordBox?.Password;
-
+                    // === СТВОРЕННЯ ===
                     if (string.IsNullOrWhiteSpace(password))
                     {
-                        MessageBox.Show("Для нового користувача потрібен пароль!", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show("Для нового користувача пароль обов'язковий!", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
-
                     _adminService.CreateUser(_user, password, _adminId);
+                    MessageBox.Show("Користувача створено!", "Успіх");
                 }
 
                 _closeWindowAction(true);
@@ -160,9 +143,6 @@ namespace Requests.UI.ViewModels
             }
         }
 
-        private void Cancel(object parameter)
-        {
-            _closeWindowAction(false);
-        }
+        private void Cancel(object parameter) => _closeWindowAction(false);
     }
 }

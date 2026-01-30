@@ -67,6 +67,17 @@ namespace Requests.Services
             _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"{action} User {user.Username}" });
         }
 
+        public void ForceChangePassword(int userId, string newPassword, int adminId)
+        {
+            var user = _userRepository.GetById(userId);
+            if (user == null) return;
+
+            user.PasswordHash = AuthService.ComputeHash(newPassword);
+            _userRepository.Update(user);
+
+            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Force reset password for user {user.Username}" });
+        }
+
         public IEnumerable<User> GetAllUsers() => _userRepository.GetAll();
 
         public void CreateDepartment(string name, int adminId)

@@ -1,0 +1,152 @@
+﻿<Window x:Class="Requests.UI.Views.RequestDetailsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Деталі запиту" Height="750" Width="1000"
+        WindowStartupLocation="CenterScreen" Background="{StaticResource BackgroundLight}">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 1. Хедер -->
+        <Border Grid.Row="0" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1" Padding="0,0,0,15" Margin="0,0,0,15">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <TextBlock Text="{Binding Request.Title}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                        <TextBlock Text="Автор: " Foreground="{StaticResource TextSecondary}"/>
+                        <TextBlock Text="{Binding Request.Author.FullName}" FontWeight="SemiBold" Margin="0,0,15,0"/>
+                        <TextBlock Text="Створено: " Foreground="{StaticResource TextSecondary}"/>
+                        <TextBlock Text="{Binding Request.CreatedAt, StringFormat='dd.MM.yyyy HH:mm'}" FontWeight="SemiBold" Margin="0,0,15,0"/>
+                        <TextBlock Text="Категорія: " Foreground="{StaticResource TextSecondary}"/>
+                        <TextBlock Text="{Binding Request.Category.Name}" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <Border Grid.Column="1" Background="{StaticResource HeaderBackground}" CornerRadius="8" Padding="20,10" VerticalAlignment="Center">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="Статус" FontSize="11" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding Request.GlobalStatus.Name}" Foreground="{StaticResource PrimaryBlue}" FontWeight="Bold" FontSize="16"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- 2. Інфо -->
+        <Grid Grid.Row="1" Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Пріоритет" Foreground="{StaticResource TextSecondary}"/>
+                <TextBlock Text="{Binding Request.Priority.Name}" FontWeight="Bold" Foreground="{StaticResource TextPrimary}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+                <TextBlock Text="Дедлайн" Foreground="{StaticResource TextSecondary}"/>
+                <TextBlock Text="{Binding Request.Deadline, StringFormat='dd.MM.yyyy', TargetNullValue='-'}" FontWeight="Bold"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Закрито" Foreground="{StaticResource TextSecondary}"/>
+                <TextBlock Text="{Binding Request.CompletedAt, StringFormat='dd.MM.yyyy', TargetNullValue='В роботі'}" FontWeight="Bold"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- 3. Вкладки -->
+        <TabControl Grid.Row="2" Background="White" BorderThickness="0">
+            <TabItem Header="Опис та Виконавці" FontSize="14" Padding="15,10">
+                <Grid Margin="15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*"/>
+                        <ColumnDefinition Width="1*"/>
+                    </Grid.ColumnDefinitions>
+                    <ScrollViewer Grid.Column="0" Margin="0,0,20,0">
+                        <StackPanel>
+                            <TextBlock Text="Повний опис" FontWeight="Bold" Margin="0,0,0,10"/>
+                            <TextBlock Text="{Binding Request.Description}" TextWrapping="Wrap" FontSize="14" LineHeight="20"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <Border Grid.Column="1" Background="{StaticResource BackgroundLight}" CornerRadius="5" Padding="10">
+                        <StackPanel>
+                            <TextBlock Text="Залучені відділи" FontWeight="Bold" Margin="0,0,0,10"/>
+                            <ListBox ItemsSource="{Binding Tasks}" Background="Transparent" BorderThickness="0">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,0,0,8">
+                                            <TextBlock Text="{Binding Department.Name}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding Status.Name}" FontSize="11" Foreground="{StaticResource TextSecondary}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Вкладення" FontSize="14" Padding="15,10">
+                <Grid Margin="15">
+                    <ListBox ItemsSource="{Binding Attachments}" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource BackgroundLight}" CornerRadius="5" Padding="10" Margin="0,0,0,5" Width="400" HorizontalAlignment="Left">
+                                    <DockPanel>
+                                        <Button Content="⬇" Command="{Binding DataContext.DownloadFileCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
+                                                CommandParameter="{Binding}" DockPanel.Dock="Right"
+                                                Style="{StaticResource ActionBtnStyle}" Width="30" Height="30" Padding="0"/>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding FileName}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding UploadedAt, StringFormat='Завантажено: dd.MM HH:mm'}" FontSize="10" Foreground="{StaticResource TextSecondary}"/>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Коментарі" FontSize="14" Padding="15,10">
+                <Grid Margin="15">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <ListBox ItemsSource="{Binding Comments}" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource BackgroundLight}" CornerRadius="8" Padding="10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <DockPanel LastChildFill="False">
+                                            <TextBlock Text="{Binding User.FullName}" FontWeight="Bold" Foreground="{StaticResource PrimaryBlue}"/>
+                                            <TextBlock Text="{Binding CreatedAt, StringFormat='dd.MM HH:mm'}" Foreground="{StaticResource TextSecondary}" FontSize="11" DockPanel.Dock="Right"/>
+                                        </DockPanel>
+                                        <TextBlock Text="{Binding CommentText}" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Grid Grid.Row="1" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding NewCommentText, UpdateSourceTrigger=PropertyChanged}" Height="40" Tag="Написати коментар..."/>
+                        <Button Grid.Column="1" Content="Надіслати" Command="{Binding AddCommentCommand}" 
+                                Style="{StaticResource ActionBtnStyle}" Margin="10,0,0,0" Width="100"/>
+                    </Grid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>
