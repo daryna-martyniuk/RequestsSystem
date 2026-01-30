@@ -8,6 +8,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Input;
@@ -25,12 +26,48 @@ namespace Requests.UI.ViewModels
         public ObservableCollection<Department> Departments { get; set; }
         public ObservableCollection<Position> Positions { get; set; }
 
+        public ObservableCollection<User> DepartmentEmployees { get; set; }
+
         public ICollectionView UsersView { get; private set; }
+        public ICollectionView LogsView { get; private set; }
+
+        // === СТАТИСТИКА ===
+        private int _totalUsersCount;
+        private int _activeUsersCount;
+        private int _departmentsCount;
+        private int _positionsCount;
+
+        public int TotalUsersCount
+        {
+            get => _totalUsersCount;
+            set { _totalUsersCount = value; OnPropertyChanged(); }
+        }
+        public int ActiveUsersCount
+        {
+            get => _activeUsersCount;
+            set { _activeUsersCount = value; OnPropertyChanged(); }
+        }
+        public int DepartmentsCount
+        {
+            get => _departmentsCount;
+            set { _departmentsCount = value; OnPropertyChanged(); }
+        }
+        public int PositionsCount
+        {
+            get => _positionsCount;
+            set { _positionsCount = value; OnPropertyChanged(); }
+        }
+
         private string _searchText;
+        private string _logsSearchText;
+        private bool _showOnlyActiveUsers;
+
+        private Department _selectedDepartment;
+
         private string _currentView = "Users";
 
         private string _newDepartmentName;
-        private string _newPositionName;
+        // _newPositionName видалено, бо ми прибрали додавання посад
 
         // Команди
         public ICommand CreateUserCommand { get; }
@@ -38,19 +75,17 @@ namespace Requests.UI.ViewModels
         public ICommand BackupCommand { get; }
         public ICommand SwitchViewCommand { get; }
 
-        // Структура - Створення
         public ICommand CreateDepartmentCommand { get; }
-        public ICommand CreatePositionCommand { get; }
+        // CreatePositionCommand видалено або можна залишити пустим
 
-        // Структура - Редагування/Видалення (НОВЕ)
+        // Структура - Редагування/Видалення
         public ICommand EditDepartmentCommand { get; }
         public ICommand DeleteDepartmentCommand { get; }
-        public ICommand EditPositionCommand { get; }
-        public ICommand DeletePositionCommand { get; }
 
         public AdminViewModel(User currentUser)
         {
             _currentUser = currentUser;
+            DepartmentEmployees = new ObservableCollection<User>();
 
             try
             {
@@ -66,7 +101,6 @@ namespace Requests.UI.ViewModels
             catch (Exception ex)
             {
                 MessageBox.Show($"Помилка ініціалізації: {ex.Message}");
-                // Init empty collections to avoid crash
                 Users = new ObservableCollection<User>();
                 SystemLogs = new ObservableCollection<AuditLog>();
                 Departments = new ObservableCollection<Department>();
@@ -79,20 +113,21 @@ namespace Requests.UI.ViewModels
                 UsersView.Filter = FilterUsers;
             }
 
-            // Ініціалізація команд
+            if (SystemLogs != null)
+            {
+                LogsView = CollectionViewSource.GetDefaultView(SystemLogs);
+                LogsView.Filter = FilterLogs;
+            }
+
             CreateUserCommand = new RelayCommand(OpenCreateUserWindow);
             EditUserCommand = new RelayCommand(OpenEditUserWindow);
             BackupCommand = new RelayCommand(BackupDatabase);
             SwitchViewCommand = new RelayCommand(SwitchView);
 
             CreateDepartmentCommand = new RelayCommand(CreateDepartment, _ => !string.IsNullOrWhiteSpace(NewDepartmentName));
-            CreatePositionCommand = new RelayCommand(CreatePosition, _ => !string.IsNullOrWhiteSpace(NewPositionName));
 
-            // НОВІ КОМАНДИ
             EditDepartmentCommand = new RelayCommand(EditDepartment);
             DeleteDepartmentCommand = new RelayCommand(DeleteDepartment);
-            EditPositionCommand = new RelayCommand(EditPosition);
-            DeletePositionCommand = new RelayCommand(DeletePosition);
         }
 
         private void LoadData()
@@ -101,40 +136,103 @@ namespace Requests.UI.ViewModels
             SystemLogs = new ObservableCollection<AuditLog>(_adminService.GetSystemLogs());
             Departments = new ObservableCollection<Department>(_adminService.GetAllDepartments());
             Positions = new ObservableCollection<Position>(_adminService.GetAllPositions());
+
+            UpdateStats();
         }
 
-        // ... SearchText, NewDepartmentName properties ... 
+        private void UpdateStats()
+        {
+            if (Users != null)
+            {
+                TotalUsersCount = Users.Count;
+                ActiveUsersCount = Users.Count(u => u.IsActive);
+            }
+            if (Departments != null) DepartmentsCount = Departments.Count;
+            if (Positions != null) PositionsCount = Positions.Count;
+        }
+
         public string SearchText
         {
             get => _searchText;
             set { _searchText = value; OnPropertyChanged(); UsersView?.Refresh(); }
         }
+
+        public string LogsSearchText
+        {
+            get => _logsSearchText;
+            set { _logsSearchText = value; OnPropertyChanged(); LogsView?.Refresh(); }
+        }
+
+        public bool ShowOnlyActiveUsers
+        {
+            get => _showOnlyActiveUsers;
+            set { _showOnlyActiveUsers = value; OnPropertyChanged(); UsersView?.Refresh(); }
+        }
+
+        public Department SelectedDepartment
+        {
+            get => _selectedDepartment;
+            set
+            {
+                _selectedDepartment = value;
+                OnPropertyChanged();
+                UpdateDepartmentEmployees();
+            }
+        }
+
+        private void UpdateDepartmentEmployees()
+        {
+            DepartmentEmployees.Clear();
+            if (SelectedDepartment != null)
+            {
+                var employees = Users.Where(u => u.DepartmentId == SelectedDepartment.Id).ToList();
+                foreach (var emp in employees) DepartmentEmployees.Add(emp);
+            }
+        }
+
         public string NewDepartmentName
         {
             get => _newDepartmentName;
             set { _newDepartmentName = value; OnPropertyChanged(); }
         }
-        public string NewPositionName
-        {
-            get => _newPositionName;
-            set { _newPositionName = value; OnPropertyChanged(); }
-        }
 
-        // Visibility props
         public Visibility IsUsersVisible => _currentView == "Users" ? Visibility.Visible : Visibility.Collapsed;
         public Visibility IsLogsVisible => _currentView == "Logs" ? Visibility.Visible : Visibility.Collapsed;
         public Visibility IsStructureVisible => _currentView == "Structure" ? Visibility.Visible : Visibility.Collapsed;
 
-        // ... FilterUsers, SwitchView ...
+        // === ОНОВЛЕНА ЛОГІКА ФІЛЬТРАЦІЇ ===
+
         private bool FilterUsers(object obj)
         {
             if (obj is User user)
             {
+                if (ShowOnlyActiveUsers && !user.IsActive) return false;
                 if (string.IsNullOrWhiteSpace(SearchText)) return true;
+
                 string search = SearchText.ToLower();
                 return user.FullName.ToLower().Contains(search) ||
                        user.Username.ToLower().Contains(search) ||
-                       user.Department.Name.ToLower().Contains(search);
+                       user.Department.Name.ToLower().Contains(search) ||
+                       // Додано пошук за посадою:
+                       user.Position.Name.ToLower().Contains(search);
+            }
+            return false;
+        }
+
+        private bool FilterLogs(object obj)
+        {
+            if (obj is AuditLog log)
+            {
+                if (string.IsNullOrWhiteSpace(LogsSearchText)) return true;
+                string search = LogsSearchText.ToLower();
+
+                // Пошук по дії, ID та даті
+                bool matchAction = log.Action != null && log.Action.ToLower().Contains(search);
+                bool matchUser = log.UserId.ToString().Contains(search);
+                // Додано пошук по даті (текстове представлення)
+                bool matchDate = log.Timestamp.ToString("dd.MM.yyyy HH:mm").Contains(search);
+
+                return matchAction || matchUser || matchDate;
             }
             return false;
         }
@@ -158,10 +256,11 @@ namespace Requests.UI.ViewModels
                 foreach (var d in _adminService.GetAllDepartments()) Departments.Add(d);
                 Positions.Clear();
                 foreach (var p in _adminService.GetAllPositions()) Positions.Add(p);
+                UpdateStats();
             }
         }
 
-        // === CRUD FOR STRUCTURE ===
+        // === CRUD ВІДДІЛИ ===
 
         private void EditDepartment(object obj)
         {
@@ -174,7 +273,7 @@ namespace Requests.UI.ViewModels
                     {
                         dept.Name = dialog.ResultName;
                         _adminService.UpdateDepartment(dept, _currentUser.Id);
-                        SwitchView("Structure"); // Оновити UI
+                        SwitchView("Structure");
                     }
                     catch (Exception ex) { MessageBox.Show(ex.Message, "Помилка"); }
                 }
@@ -197,53 +296,13 @@ namespace Requests.UI.ViewModels
             }
         }
 
-        private void EditPosition(object obj)
-        {
-            if (obj is Position pos)
-            {
-                var dialog = new EditNameWindow(pos.Name);
-                if (dialog.ShowDialog() == true)
-                {
-                    try
-                    {
-                        pos.Name = dialog.ResultName;
-                        _adminService.UpdatePosition(pos, _currentUser.Id);
-                        SwitchView("Structure");
-                    }
-                    catch (Exception ex) { MessageBox.Show(ex.Message, "Помилка"); }
-                }
-            }
-        }
-
-        private void DeletePosition(object obj)
-        {
-            if (obj is Position pos)
-            {
-                if (MessageBox.Show($"Видалити посаду '{pos.Name}'?", "Підтвердження", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
-                {
-                    try
-                    {
-                        _adminService.DeletePosition(pos.Id, _currentUser.Id);
-                        Positions.Remove(pos);
-                    }
-                    catch (Exception ex) { MessageBox.Show(ex.Message, "Неможливо видалити"); }
-                }
-            }
-        }
-
-        // ... Existing methods: CreateDepartment, CreatePosition, OpenCreateUserWindow, OpenEditUserWindow, BackupDatabase ...
-
         private void CreateDepartment(object obj)
         {
             try { _adminService.CreateDepartment(NewDepartmentName, _currentUser.Id); NewDepartmentName = ""; SwitchView("Structure"); }
             catch (Exception ex) { MessageBox.Show(ex.Message); }
         }
-        private void CreatePosition(object obj)
-        {
-            try { _adminService.CreatePosition(NewPositionName, _currentUser.Id); NewPositionName = ""; SwitchView("Structure"); }
-            catch (Exception ex) { MessageBox.Show(ex.Message); }
-        }
 
+        // === КОРИСТУВАЧІ ===
         private void OpenCreateUserWindow(object obj)
         {
             var newUser = new User { IsActive = true };
@@ -253,6 +312,7 @@ namespace Requests.UI.ViewModels
                 var allUsers = _adminService.GetAllUsers();
                 Users.Clear();
                 foreach (var u in allUsers) Users.Add(u);
+                UpdateStats();
             }
         }
 
@@ -261,7 +321,11 @@ namespace Requests.UI.ViewModels
             if (obj is User userToEdit)
             {
                 var editWindow = new EditUserWindow(userToEdit, _adminService, _currentUser.Id);
-                if (editWindow.ShowDialog() == true) UsersView.Refresh();
+                if (editWindow.ShowDialog() == true)
+                {
+                    UsersView.Refresh();
+                    UpdateStats();
+                }
             }
         }
 

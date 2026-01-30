@@ -4,52 +4,14 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="{Binding WindowTitle}" Height="580" Width="420"
+        Title="{Binding WindowTitle}" Height="620" Width="420"
         WindowStartupLocation="CenterScreen" ResizeMode="NoResize" 
         Background="White" WindowStyle="None" AllowsTransparency="True">
 
     <!-- Основний стиль вікна -->
     <Window.Resources>
         <SolidColorBrush x:Key="PrimaryBlue" Color="#3498DB"/>
-        <SolidColorBrush x:Key="LightBlue" Color="#ECF5FB"/>
         <SolidColorBrush x:Key="TextGray" Color="#7F8C8D"/>
-
-        <Style TargetType="TextBox">
-            <Setter Property="Padding" Value="8"/>
-            <Setter Property="Margin" Value="0,5,0,15"/>
-            <Setter Property="BorderBrush" Value="#BDC3C7"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TextBox">
-                        <Border CornerRadius="5" BorderThickness="1" BorderBrush="{TemplateBinding BorderBrush}" Background="{TemplateBinding Background}">
-                            <ScrollViewer x:Name="PART_ContentHost"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="PasswordBox">
-            <Setter Property="Padding" Value="8"/>
-            <Setter Property="Margin" Value="0,5,0,15"/>
-            <Setter Property="BorderBrush" Value="#BDC3C7"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="PasswordBox">
-                        <Border CornerRadius="5" BorderThickness="1" BorderBrush="{TemplateBinding BorderBrush}" Background="White">
-                            <ScrollViewer x:Name="PART_ContentHost"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="ComboBox">
-            <Setter Property="Padding" Value="8"/>
-            <Setter Property="Margin" Value="0,5,0,15"/>
-            <Setter Property="Height" Value="35"/>
-        </Style>
     </Window.Resources>
 
     <Border BorderBrush="{StaticResource PrimaryBlue}" BorderThickness="1" CornerRadius="10" Background="White">
@@ -109,12 +71,20 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- Активність -->
-                <CheckBox IsChecked="{Binding IsActive}" Content="Акаунт активний" Margin="0,5" Foreground="{StaticResource TextGray}" FontSize="14">
-                    <CheckBox.LayoutTransform>
-                        <ScaleTransform ScaleX="1.2" ScaleY="1.2"/>
-                    </CheckBox.LayoutTransform>
-                </CheckBox>
+                <!-- Чекбокси -->
+                <StackPanel Orientation="Vertical" Margin="0,10,0,0">
+                    <CheckBox IsChecked="{Binding IsActive}" Content="Акаунт активний" Margin="0,5" Foreground="{StaticResource TextGray}" FontSize="14">
+                        <CheckBox.LayoutTransform>
+                            <ScaleTransform ScaleX="1.1" ScaleY="1.1"/>
+                        </CheckBox.LayoutTransform>
+                    </CheckBox>
+
+                    <CheckBox IsChecked="{Binding IsSystemAdmin}" Content="Адміністратор системи" Margin="0,5" Foreground="{StaticResource TextGray}" FontSize="14" FontWeight="Bold">
+                        <CheckBox.LayoutTransform>
+                            <ScaleTransform ScaleX="1.1" ScaleY="1.1"/>
+                        </CheckBox.LayoutTransform>
+                    </CheckBox>
+                </StackPanel>
             </StackPanel>
 
             <!-- Кнопки -->

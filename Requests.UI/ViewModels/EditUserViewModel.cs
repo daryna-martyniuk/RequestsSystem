@@ -20,7 +20,9 @@ namespace Requests.UI.ViewModels
         private string _username;
         private string _email;
         private bool _isActive;
+        private bool _isSystemAdmin; // <-- Нова властивість
 
+        // Зміни для ComboBox
         private Department _selectedDepartment;
         private Position _selectedPosition;
 
@@ -34,14 +36,18 @@ namespace Requests.UI.ViewModels
             _adminId = adminId;
             _closeWindowAction = closeWindowAction;
 
+            // Завантажуємо списки для вибору
             Departments = new ObservableCollection<Department>(_adminService.GetAllDepartments());
             Positions = new ObservableCollection<Position>(_adminService.GetAllPositions());
 
+            // Ініціалізація полів
             FullName = user.FullName;
             Username = user.Username;
             Email = user.Email;
             IsActive = user.IsActive;
+            IsSystemAdmin = user.IsSystemAdmin; // Ініціалізація прав адміна
 
+            // Встановлюємо вибрані значення
             SelectedDepartment = Departments.FirstOrDefault(d => d.Id == user.DepartmentId);
             SelectedPosition = Positions.FirstOrDefault(p => p.Id == user.PositionId);
 
@@ -89,6 +95,12 @@ namespace Requests.UI.ViewModels
             set { _isActive = value; OnPropertyChanged(); }
         }
 
+        public bool IsSystemAdmin
+        {
+            get => _isSystemAdmin;
+            set { _isSystemAdmin = value; OnPropertyChanged(); }
+        }
+
         public ICommand SaveCommand { get; }
         public ICommand CancelCommand { get; }
 
@@ -96,6 +108,7 @@ namespace Requests.UI.ViewModels
         {
             try
             {
+                // Валідація
                 if (SelectedDepartment == null || SelectedPosition == null)
                 {
                     MessageBox.Show("Оберіть відділ та посаду!", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -108,17 +121,20 @@ namespace Requests.UI.ViewModels
                     return;
                 }
 
+                // Оновлюємо модель
                 _user.FullName = FullName;
                 _user.Username = Username;
                 _user.Email = Email;
                 _user.DepartmentId = SelectedDepartment.Id;
                 _user.PositionId = SelectedPosition.Id;
                 _user.IsActive = IsActive;
+                _user.IsSystemAdmin = IsSystemAdmin; // Зберігаємо права адміна
 
                 if (IsEditMode)
                 {
                     _adminService.EditUser(_user, _adminId);
 
+                    // Окремо оновлюємо статус активності, якщо змінився
                     if (_user.IsActive != IsActive)
                         _adminService.ToggleUserActivity(_user.Id, IsActive, _adminId);
                 }
