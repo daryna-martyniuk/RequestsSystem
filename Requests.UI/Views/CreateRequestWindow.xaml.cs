@@ -9,7 +9,12 @@ namespace Requests.UI.Views
 {
     public partial class CreateRequestWindow : Window
     {
+        // Конструктор для створення
         public CreateRequestWindow(User currentUser, EmployeeService service)
+            : this(currentUser, service, null) { }
+
+        // Конструктор для редагування
+        public CreateRequestWindow(User currentUser, EmployeeService service, Request requestToEdit)
         {
             try
             {
@@ -19,13 +24,13 @@ namespace Requests.UI.Views
                 {
                     this.DialogResult = result;
                     this.Close();
-                });
+                }, requestToEdit); // Передаємо запит сюди
 
                 this.DataContext = vm;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Помилка ініціалізації: {ex.Message}");
+                MessageBox.Show($"Помилка ініціалізації вікна: {ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
                 this.Close();
             }
         }

@@ -1,6 +1,7 @@
 ﻿using Requests.Data.Models;
 using Requests.Services;
 using Requests.UI.Views;
+using System;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
@@ -18,6 +19,11 @@ namespace Requests.UI.ViewModels
         public ICommand RefreshCommand { get; }
         public ICommand OpenDetailsCommand { get; }
 
+        // Нові команди
+        public ICommand EditRequestCommand { get; }
+        public ICommand DeleteRequestCommand { get; }
+        public ICommand CancelRequestCommand { get; }
+
         public MyWorkspaceViewModel(User currentUser, EmployeeService employeeService)
         {
             _currentUser = currentUser;
@@ -25,9 +31,11 @@ namespace Requests.UI.ViewModels
 
             CreateRequestCommand = new RelayCommand(CreateRequest);
             RefreshCommand = new RelayCommand(o => LoadData());
-
-            // Команда відкриття деталей
             OpenDetailsCommand = new RelayCommand(OpenDetails);
+
+            EditRequestCommand = new RelayCommand(EditRequest);
+            DeleteRequestCommand = new RelayCommand(DeleteRequest);
+            CancelRequestCommand = new RelayCommand(CancelRequest);
 
             LoadData();
         }
@@ -44,10 +52,55 @@ namespace Requests.UI.ViewModels
 
         private void CreateRequest(object obj)
         {
-            var createWindow = new Requests.UI.Views.CreateRequestWindow(_currentUser, _employeeService);
-            if (createWindow.ShowDialog() == true)
+            // Виклик конструктора для СТВОРЕННЯ (null)
+            var window = new Requests.UI.Views.CreateRequestWindow(_currentUser, _employeeService, null);
+            if (window.ShowDialog() == true) LoadData();
+        }
+
+        private void EditRequest(object obj)
+        {
+            if (obj is Request req)
             {
-                LoadData();
+                // Завантажуємо повний об'єкт, щоб мати доступ до Tasks
+                var fullReq = _employeeService.GetRequestDetails(req.Id);
+                if (fullReq != null)
+                {
+                    // Виклик конструктора для РЕДАГУВАННЯ
+                    var window = new Requests.UI.Views.CreateRequestWindow(_currentUser, _employeeService, fullReq);
+                    if (window.ShowDialog() == true) LoadData();
+                }
+            }
+        }
+
+        private void DeleteRequest(object obj)
+        {
+            if (obj is Request req)
+            {
+                if (MessageBox.Show("Ви точно хочете видалити цей запит?", "Підтвердження", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                {
+                    try
+                    {
+                        _employeeService.DeleteRequest(req.Id, _currentUser.Id);
+                        LoadData();
+                    }
+                    catch (Exception ex) { MessageBox.Show(ex.Message, "Помилка"); }
+                }
+            }
+        }
+
+        private void CancelRequest(object obj)
+        {
+            if (obj is Request req)
+            {
+                if (MessageBox.Show("Скасувати виконання цього запиту?", "Підтвердження", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                {
+                    try
+                    {
+                        _employeeService.CancelRequest(req.Id, _currentUser.Id);
+                        LoadData();
+                    }
+                    catch (Exception ex) { MessageBox.Show(ex.Message, "Помилка"); }
+                }
             }
         }
 
@@ -55,13 +108,11 @@ namespace Requests.UI.ViewModels
         {
             if (obj is Request req)
             {
-                // Завантажуємо повну інформацію
                 var fullRequest = _employeeService.GetRequestDetails(req.Id);
                 if (fullRequest != null)
                 {
                     var detailsWindow = new RequestDetailsWindow(fullRequest, _currentUser, _employeeService);
                     detailsWindow.ShowDialog();
-                    // Оновлюємо після закриття
                     LoadData();
                 }
             }

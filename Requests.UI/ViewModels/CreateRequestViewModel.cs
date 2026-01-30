@@ -25,6 +25,15 @@ namespace Requests.UI.ViewModels
         private readonly User _currentUser;
         private readonly Action<bool> _closeAction;
 
+        // Для режиму редагування
+        private readonly Request _existingRequest;
+        public bool IsEditMode => _existingRequest != null;
+        public string WindowTitle => IsEditMode ? $"Редагування запиту #{_existingRequest.Id}" : "Новий запит";
+        public string SaveButtonText => IsEditMode ? "Зберегти зміни" : "Створити запит";
+
+        // Блокування полів, якщо запит вже в роботі
+        public bool CanEditCoreFields { get; private set; } = true;
+
         private string _title;
         private string _description;
         private RequestPriority _selectedPriority;
@@ -37,7 +46,6 @@ namespace Requests.UI.ViewModels
 
         private string _attachmentName;
         private byte[] _attachmentData;
-        
         public string AttachmentName
         {
             get => _attachmentName;
@@ -47,13 +55,7 @@ namespace Requests.UI.ViewModels
 
         public string Title { get => _title; set { _title = value; OnPropertyChanged(); } }
         public string Description { get => _description; set { _description = value; OnPropertyChanged(); } }
-        
-        public DateTime? Deadline 
-        { 
-            get => _deadline; 
-            set { _deadline = value; OnPropertyChanged(); } 
-        }
-
+        public DateTime? Deadline { get => _deadline; set { _deadline = value; OnPropertyChanged(); } }
         public RequestPriority SelectedPriority { get => _selectedPriority; set { _selectedPriority = value; OnPropertyChanged(); } }
         public RequestCategory SelectedCategory { get => _selectedCategory; set { _selectedCategory = value; OnPropertyChanged(); } }
 
@@ -62,34 +64,64 @@ namespace Requests.UI.ViewModels
         public ICommand AttachFileCommand { get; }
         public ICommand RemoveFileCommand { get; }
 
+        // Конструктор для СТВОРЕННЯ
         public CreateRequestViewModel(User currentUser, EmployeeService employeeService, Action<bool> closeAction)
+            : this(currentUser, employeeService, closeAction, null) { }
+
+        // Конструктор для РЕДАГУВАННЯ
+        public CreateRequestViewModel(User currentUser, EmployeeService employeeService, Action<bool> closeAction, Request requestToEdit)
         {
             _currentUser = currentUser;
             _employeeService = employeeService;
             _closeAction = closeAction;
+            _existingRequest = requestToEdit;
 
-            Deadline = DateTime.Today.AddDays(7);
+            // Перевіряємо, чи можна редагувати основні поля
+            if (IsEditMode)
+            {
+                // Якщо статус НЕ "Очікує погодження" і НЕ "Новий" -> блокуємо тему і категорію
+                bool isPending = _existingRequest.GlobalStatus.Name == ServiceConstants.StatusPendingApproval ||
+                                 _existingRequest.GlobalStatus.Name == ServiceConstants.StatusNew;
+                CanEditCoreFields = isPending;
+            }
 
             using (var context = new AppDbContext())
             {
+                // Відділи
                 var depts = context.Departments.Where(d => d.Id != _currentUser.DepartmentId).ToList();
                 Departments = new ObservableCollection<SelectableDepartment>(depts.Select(d => new SelectableDepartment { Id = d.Id, Name = d.Name }));
 
+                // Пріоритети
                 var prioList = context.RequestPriorities.ToList();
-                
-                bool isStrategicUser = _currentUser.Position.Name == ServiceConstants.PositionDirector || 
-                                     _currentUser.Position.Name == ServiceConstants.PositionDeputyDirector;
-
-                if (!isStrategicUser)
-                {
+                if (_currentUser.Position.Name != ServiceConstants.PositionDirector && _currentUser.Position.Name != ServiceConstants.PositionDeputyDirector)
                     prioList = prioList.Where(p => p.Name != ServiceConstants.PriorityCritical).ToList();
-                }
-                
                 Priorities = new ObservableCollection<RequestPriority>(prioList);
-                SelectedPriority = Priorities.FirstOrDefault(p => p.Name == ServiceConstants.PriorityNormal) ?? Priorities.FirstOrDefault();
 
+                // Категорії
                 Categories = new ObservableCollection<RequestCategory>(context.RequestCategories.ToList());
-                SelectedCategory = Categories.FirstOrDefault();
+
+                // Заповнення полів
+                if (IsEditMode)
+                {
+                    Title = _existingRequest.Title;
+                    Description = _existingRequest.Description;
+                    Deadline = _existingRequest.Deadline;
+                    SelectedPriority = Priorities.FirstOrDefault(p => p.Id == _existingRequest.PriorityId);
+                    SelectedCategory = Categories.FirstOrDefault(c => c.Id == _existingRequest.CategoryId);
+
+                    // Відмічаємо відділи
+                    foreach (var task in _existingRequest.DepartmentTasks)
+                    {
+                        var d = Departments.FirstOrDefault(x => x.Id == task.DepartmentId);
+                        if (d != null) d.IsSelected = true;
+                    }
+                }
+                else
+                {
+                    Deadline = DateTime.Today.AddDays(7);
+                    SelectedPriority = Priorities.FirstOrDefault(p => p.Name == ServiceConstants.PriorityNormal) ?? Priorities.FirstOrDefault();
+                    SelectedCategory = Categories.FirstOrDefault();
+                }
             }
 
             SaveCommand = new RelayCommand(Save);
@@ -98,19 +130,12 @@ namespace Requests.UI.ViewModels
             RemoveFileCommand = new RelayCommand(RemoveFile);
         }
 
+        public void SetAttachment(string filePath) => ProcessFile(filePath);
+
         private void AttachFile(object obj)
         {
             var dialog = new OpenFileDialog { Title = "Оберіть файл" };
-            if (dialog.ShowDialog() == true)
-            {
-                ProcessFile(dialog.FileName);
-            }
-        }
-
-        // Цей метод викликається з Code-behind при Drag & Drop
-        public void SetAttachment(string filePath)
-        {
-            ProcessFile(filePath);
+            if (dialog.ShowDialog() == true) ProcessFile(dialog.FileName);
         }
 
         private void ProcessFile(string filePath)
@@ -118,19 +143,11 @@ namespace Requests.UI.ViewModels
             try
             {
                 var info = new FileInfo(filePath);
-                if (info.Length > 10 * 1024 * 1024) 
-                {
-                    MessageBox.Show("Файл завеликий (макс 10 МБ).", "Помилка");
-                    return;
-                }
-                
+                if (info.Length > 10 * 1024 * 1024) { MessageBox.Show("Файл > 10 МБ"); return; }
                 AttachmentName = info.Name;
                 _attachmentData = File.ReadAllBytes(filePath);
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Помилка читання файлу: {ex.Message}");
-            }
+            catch (Exception ex) { MessageBox.Show(ex.Message); }
         }
 
         private void RemoveFile(object obj)
@@ -141,32 +158,56 @@ namespace Requests.UI.ViewModels
 
         private void Save(object obj)
         {
-            if (string.IsNullOrWhiteSpace(Title)) { MessageBox.Show("Вкажіть тему!"); return; }
-            if (SelectedCategory == null) { MessageBox.Show("Оберіть категорію!"); return; }
+            if (CanEditCoreFields) // Валідація тільки якщо ми можемо це міняти
+            {
+                if (string.IsNullOrWhiteSpace(Title)) { MessageBox.Show("Вкажіть тему!"); return; }
+                if (SelectedCategory == null) { MessageBox.Show("Оберіть категорію!"); return; }
 
-            var targets = Departments.Where(d => d.IsSelected).Select(d => d.Id).ToList();
-            if (!targets.Any()) { MessageBox.Show("Оберіть хоча б один відділ-виконавець!"); return; }
+                // Перевірка відділів тільки при створенні (бо при редагуванні ми поки не міняємо їх)
+                if (!IsEditMode)
+                {
+                    var targets = Departments.Where(d => d.IsSelected).Select(d => d.Id).ToList();
+                    if (!targets.Any()) { MessageBox.Show("Оберіть виконавців!"); return; }
+                }
+            }
 
             try
             {
-                var req = new Request
+                if (IsEditMode)
                 {
-                    Title = Title,
-                    Description = Description,
-                    PriorityId = SelectedPriority.Id,
-                    CategoryId = SelectedCategory.Id,
-                    Deadline = Deadline
-                };
+                    // Оновлюємо існуючий
+                    _existingRequest.Title = Title;
+                    _existingRequest.Description = Description;
+                    _existingRequest.PriorityId = SelectedPriority?.Id ?? _existingRequest.PriorityId;
+                    _existingRequest.CategoryId = SelectedCategory?.Id ?? _existingRequest.CategoryId;
+                    _existingRequest.Deadline = Deadline;
 
-                // Сервіс сам визначить початковий статус (Новий або На погодження) в залежності від ролі
-                _employeeService.CreateRequest(req, _currentUser.Id, targets);
+                    _employeeService.UpdateRequest(_existingRequest, _currentUser.Id);
 
-                if (HasAttachment)
-                {
-                    _employeeService.AddAttachment(req.Id, AttachmentName, _attachmentData, _currentUser.Id);
+                    if (HasAttachment)
+                        _employeeService.AddAttachment(_existingRequest.Id, AttachmentName, _attachmentData, _currentUser.Id);
+
+                    MessageBox.Show("Запит оновлено!");
                 }
+                else
+                {
+                    // Створюємо новий
+                    var targets = Departments.Where(d => d.IsSelected).Select(d => d.Id).ToList();
+                    var req = new Request
+                    {
+                        Title = Title,
+                        Description = Description,
+                        PriorityId = SelectedPriority.Id,
+                        CategoryId = SelectedCategory.Id,
+                        Deadline = Deadline
+                    };
+                    _employeeService.CreateRequest(req, _currentUser.Id, targets);
 
-                MessageBox.Show("Запит створено!");
+                    if (HasAttachment)
+                        _employeeService.AddAttachment(req.Id, AttachmentName, _attachmentData, _currentUser.Id);
+
+                    MessageBox.Show("Запит створено!");
+                }
                 _closeAction(true);
             }
             catch (Exception ex) { MessageBox.Show($"Помилка: {ex.Message}"); }
