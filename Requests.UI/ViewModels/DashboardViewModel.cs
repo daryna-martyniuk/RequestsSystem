@@ -115,7 +115,9 @@ namespace Requests.UI.ViewModels
 
         private void EditProfile(object obj)
         {
-            MessageBox.Show("Редагування профілю (TODO)");
+            var profileWindow = new EditProfileWindow(_currentUser);
+            profileWindow.ShowDialog();
+            OnPropertyChanged(nameof(UserName));
         }
 
         private void Logout(object obj)
