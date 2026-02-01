@@ -9,21 +9,24 @@ namespace Requests.Services
 {
     public class EmployeeService
     {
-        protected readonly RequestRepository _requestRepository;
+        protected readonly RequestRepository _requestRepository; 
+        protected readonly DepartmentTaskRepository _taskRepository;
         protected readonly IRepository<RequestStatus> _statusRepository;
         protected readonly IRepository<RequestComment> _commentRepository;
         protected readonly IRepository<RequestAttachment> _attachmentRepository;
-        protected readonly IRepository<DepartmentTask> _taskRepository;
+        //protected readonly IRepository<DepartmentTask> _taskRepository;
         protected readonly IRepository<AuditLog> _auditRepository;
 
         public EmployeeService(
             RequestRepository requestRepository,
+            DepartmentTaskRepository taskRepository,
             IRepository<RequestStatus> statusRepository,
             IRepository<RequestComment> commentRepository,
             IRepository<RequestAttachment> attachmentRepository,
             IRepository<AuditLog> auditRepository)
         {
             _requestRepository = requestRepository;
+            _taskRepository = taskRepository;
             _statusRepository = statusRepository;
             _commentRepository = commentRepository;
             _attachmentRepository = attachmentRepository;
@@ -33,6 +36,12 @@ namespace Requests.Services
         // === ПЕРЕГЛЯД ===
         public IEnumerable<Request> GetMyRequests(int userId) => _requestRepository.GetByAuthorId(userId);
         public Request? GetRequestDetails(int requestId) => _requestRepository.GetFullRequestInfo(requestId);
+        public IEnumerable<DepartmentTask> GetMyTasks(int userId)
+        {
+            // Використовуємо новий репо
+            return _taskRepository.GetTasksByExecutor(userId)
+                                  .Where(t => t.Status.Name != ServiceConstants.TaskStatusDone);
+        }
 
         // === СТВОРЕННЯ ===
         public void CreateRequest(Request request, int userId, List<int> targetDepartmentIds)

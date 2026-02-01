@@ -68,12 +68,13 @@ namespace Requests.UI.ViewModels
             // Ініціалізація сервісів
             var context = new AppDbContext();
             var reqRepo = new RequestRepository(context);
+            var depTaskRepo = new DepartmentTaskRepository(context);
             var statusRepo = new Repository<RequestStatus>(context);
             var commentRepo = new Repository<RequestComment>(context);
             var attachRepo = new Repository<RequestAttachment>(context);
             var auditRepo = new Repository<AuditLog>(context);
 
-            _employeeService = new EmployeeService(reqRepo, statusRepo, commentRepo, attachRepo, auditRepo);
+            _employeeService = new EmployeeService(reqRepo, depTaskRepo, statusRepo, commentRepo, attachRepo, auditRepo);
 
             // === НАЛАШТУВАННЯ НАВІГАЦІЇ ===
 

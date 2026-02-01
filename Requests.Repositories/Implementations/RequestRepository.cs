@@ -66,5 +66,17 @@ namespace Requests.Repositories.Implementations
                 .Include(r => r.Attachments)
                 .FirstOrDefault(r => r.Id == id);
         }
+        public IEnumerable<Request> GetPendingApprovals(int managerDepartmentId, string pendingStatusName)
+        {
+            return _dbSet
+                .Include(r => r.Author)
+                .Include(r => r.GlobalStatus)
+                .Include(r => r.Priority)
+                .Include(r => r.Category)
+                .Where(r => r.Author.DepartmentId == managerDepartmentId &&
+                            r.GlobalStatus.Name == pendingStatusName)
+                .OrderByDescending(r => r.CreatedAt)
+                .ToList();
+        }
     }
 }

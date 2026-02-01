@@ -10,6 +10,7 @@ namespace Requests.UI
 {
     public partial class App : Application
     {
+        private static AppDbContext CreateContext() => new AppDbContext();
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
@@ -50,18 +51,37 @@ namespace Requests.UI
 
         public static EmployeeService CreateEmployeeService()
         {
-            var context = new AppDbContext();
-            var reqRepo = new RequestRepository(context);
-            var statusRepo = new Repository<RequestStatus>(context);
-            var commentRepo = new Repository<RequestComment>(context);
-            var attachRepo = new Repository<RequestAttachment>(context);
-            // Assuming DepartmentTask repository is needed here or handled internally by context in service
-            // but based on previous service definition, let's check what EmployeeService needs.
-            // It needs: RequestRepo, StatusRepo, CommentRepo, AttachmentRepo, AuditRepo.
-            // Wait, looking at previous EmployeeService code, it accepted AuditRepo as the last arg.
-            var auditRepo = new Repository<AuditLog>(context);
+            var context = CreateContext();
+            return new EmployeeService(
+                new RequestRepository(context),
+                new DepartmentTaskRepository(context),
+                new Repository<RequestStatus>(context),
+                new Repository<RequestComment>(context),
+                new Repository<RequestAttachment>(context),
+                new Repository<AuditLog>(context)
+            );
+        }
 
-            return new EmployeeService(reqRepo, statusRepo, commentRepo, attachRepo, auditRepo);
+        public static ManagerService CreateManagerService()
+        {
+            var context = CreateContext();
+
+            // Ініціалізуємо всі необхідні залежності для ManagerService
+            var requestRepo = new RequestRepository(context);
+            var taskRepo = new DepartmentTaskRepository(context);
+            var executorRepo = new Repository<TaskExecutor>(context); // Використовуємо базовий репозиторій для виконавців
+            var statusRepo = new Repository<RequestStatus>(context);
+            var auditRepo = new Repository<AuditLog>(context);
+            var userRepo = new UserRepository(context);
+
+            return new ManagerService(
+                requestRepo,
+                taskRepo,
+                executorRepo,
+                statusRepo,
+                auditRepo,
+                userRepo
+            );
         }
     }
 }
