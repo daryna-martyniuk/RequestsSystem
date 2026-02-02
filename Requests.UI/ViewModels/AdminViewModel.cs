@@ -94,8 +94,9 @@ namespace Requests.UI.ViewModels
                 var auditRepo = new Repository<AuditLog>(context);
                 var deptRepo = new Repository<Department>(context);
                 var posRepo = new Repository<Position>(context);
+                var catRepo = new Repository<RequestCategory>(context);
 
-                _adminService = new AdminService(context, userRepo, auditRepo, deptRepo, posRepo);
+                _adminService = new AdminService(context, userRepo, auditRepo, deptRepo, posRepo, catRepo);
                 LoadData();
             }
             catch (Exception ex)

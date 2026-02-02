@@ -11,6 +11,7 @@ namespace Requests.UI
     public partial class App : Application
     {
         private static AppDbContext CreateContext() => new AppDbContext();
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
@@ -24,29 +25,30 @@ namespace Requests.UI
             loginWindow.Show();
         }
 
-        // === ФАБРИКИ СЕРВІСІВ (Centralized Service Creation) ===
+        // === ФАБРИКИ СЕРВІСІВ ===
 
-        // Цей метод створює готовий AdminService з усіма залежностями
+        // Виправлено: передаємо всі необхідні репозиторії
         public static AdminService CreateAdminService()
         {
             var context = new AppDbContext();
-            var userRepo = new UserRepository(context);
-            var auditRepo = new Repository<AuditLog>(context);
-            var deptRepo = new Repository<Department>(context);
-            var posRepo = new Repository<Position>(context);
-            // ADDED: Category Repository needed for the updated AdminService constructor
-            var catRepo = new Repository<RequestCategory>(context);
 
-            return new AdminService(context, userRepo, auditRepo, deptRepo, posRepo);
+            return new AdminService(
+                context,
+                new UserRepository(context),
+                new Repository<AuditLog>(context),
+                new Repository<Department>(context),
+                new Repository<Position>(context),
+                new Repository<RequestCategory>(context) // Додано аргумент
+            );
         }
 
         public static AuthService CreateAuthService()
         {
-            var context = new AppDbContext();
-            var userRepo = new UserRepository(context);
-            var auditRepo = new Repository<AuditLog>(context);
-
-            return new AuthService(userRepo, auditRepo);
+            var context = CreateContext();
+            return new AuthService(
+                new UserRepository(context),
+                new Repository<AuditLog>(context)
+            );
         }
 
         public static EmployeeService CreateEmployeeService()
@@ -65,22 +67,37 @@ namespace Requests.UI
         public static ManagerService CreateManagerService()
         {
             var context = CreateContext();
-
-            // Ініціалізуємо всі необхідні залежності для ManagerService
-            var requestRepo = new RequestRepository(context);
-            var taskRepo = new DepartmentTaskRepository(context);
-            var executorRepo = new Repository<TaskExecutor>(context); // Використовуємо базовий репозиторій для виконавців
-            var statusRepo = new Repository<RequestStatus>(context);
-            var auditRepo = new Repository<AuditLog>(context);
-            var userRepo = new UserRepository(context);
-
             return new ManagerService(
-                requestRepo,
-                taskRepo,
-                executorRepo,
-                statusRepo,
-                auditRepo,
-                userRepo
+                new RequestRepository(context),
+                new DepartmentTaskRepository(context),
+                new Repository<TaskExecutor>(context),
+                new Repository<RequestStatus>(context),
+                new Repository<AuditLog>(context),
+                new UserRepository(context)
+            );
+        }
+
+        public static DirectorService CreateDirectorService()
+        {
+            var context = CreateContext();
+            return new DirectorService(
+                new RequestRepository(context),
+                new Repository<RequestStatus>(context),
+                new Repository<RequestPriority>(context),
+                new DepartmentTaskRepository(context),
+                new Repository<AuditLog>(context)
+            );
+        }
+
+        // Виправлено: додано UserRepository у конструктор
+        public static ReportService CreateReportService()
+        {
+            var context = CreateContext();
+            return new ReportService(
+                new RequestRepository(context),
+                new DepartmentTaskRepository(context),
+                new Repository<AuditLog>(context),
+                new UserRepository(context) // Додано аргумент
             );
         }
     }

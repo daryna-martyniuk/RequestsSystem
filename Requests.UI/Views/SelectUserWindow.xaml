@@ -1,0 +1,47 @@
+﻿<Window x:Class="Requests.UI.Views.SelectUserWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Оберіть виконавця" Height="400" Width="350"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize" WindowStyle="None"
+        Background="Transparent" AllowsTransparency="True">
+
+    <Border BorderBrush="#3498DB" BorderThickness="1" CornerRadius="10" Background="White">
+        <Grid Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Text="Оберіть співробітника:" FontSize="18" FontWeight="Bold" Foreground="#2C3E50" Margin="0,0,0,15"/>
+
+            <!-- Список співробітників -->
+            <ListBox Grid.Row="1" x:Name="EmployeesList" BorderThickness="1" BorderBrush="#BDC3C7" Margin="0,0,0,15">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="5">
+                            <TextBlock Text="{Binding FullName}" FontWeight="SemiBold"/>
+                            <TextBlock Text=" - "/>
+                            <TextBlock Text="{Binding Position.Name}" Foreground="Gray"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Кнопки -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Скасувати" IsCancel="True" Click="Cancel_Click" 
+                        Background="Transparent" Foreground="#7F8C8D" BorderThickness="0" Margin="0,0,10,0"/>
+
+                <Button Content="Призначити" IsDefault="True" Click="Select_Click" 
+                        Background="#3498DB" Foreground="White" BorderThickness="0" Padding="20,10">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="5"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

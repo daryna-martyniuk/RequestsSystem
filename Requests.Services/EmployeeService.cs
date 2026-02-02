@@ -9,12 +9,11 @@ namespace Requests.Services
 {
     public class EmployeeService
     {
-        protected readonly RequestRepository _requestRepository; 
+        protected readonly RequestRepository _requestRepository;
         protected readonly DepartmentTaskRepository _taskRepository;
         protected readonly IRepository<RequestStatus> _statusRepository;
         protected readonly IRepository<RequestComment> _commentRepository;
         protected readonly IRepository<RequestAttachment> _attachmentRepository;
-        //protected readonly IRepository<DepartmentTask> _taskRepository;
         protected readonly IRepository<AuditLog> _auditRepository;
 
         public EmployeeService(
@@ -33,140 +32,143 @@ namespace Requests.Services
             _auditRepository = auditRepository;
         }
 
-        // === ПЕРЕГЛЯД ===
-        public IEnumerable<Request> GetMyRequests(int userId) => _requestRepository.GetByAuthorId(userId);
-        public Request? GetRequestDetails(int requestId) => _requestRepository.GetFullRequestInfo(requestId);
-        public IEnumerable<DepartmentTask> GetMyTasks(int userId)
+        // === МЕТОДИ ДЛЯ ОТРИМАННЯ ДАНИХ (Виправлено помилки Missing Method) ===
+
+        public IEnumerable<Request> GetMyRequests(int userId)
         {
-            // Використовуємо новий репо
-            return _taskRepository.GetTasksByExecutor(userId)
-                                  .Where(t => t.Status.Name != ServiceConstants.TaskStatusDone);
+            return _requestRepository.GetByAuthorId(userId);
         }
 
-        // === СТВОРЕННЯ ===
-        public void CreateRequest(Request request, int userId, List<int> targetDepartmentIds)
+        public IEnumerable<DepartmentTask> GetMyTasks(int userId)
         {
-            request.AuthorId = userId;
+            // Повертає завдання, призначені конкретно цьому виконавцю
+            return _taskRepository.GetTasksByExecutor(userId);
+        }
+
+        public Request? GetRequestDetails(int requestId)
+        {
+            return _requestRepository.GetFullRequestInfo(requestId);
+        }
+
+        // === СТВОРЕННЯ ЗАПИТУ ===
+        public void CreateRequest(Request request, User author, List<int> targetDepartmentIds)
+        {
+            request.AuthorId = author.Id;
             request.CreatedAt = DateTime.Now;
 
-            // Статус: "Новий" для стратегічних, "Очікує погодження" для звичайних
-            string statusName = request.IsStrategic ? ServiceConstants.StatusNew : ServiceConstants.StatusPendingApproval;
-            var status = _statusRepository.Find(s => s.Name == statusName).FirstOrDefault();
-            request.GlobalStatusId = status!.Id;
-
-            // Задачі відділів (створюємо заготовки)
+            // 1. СТВОРЮЄМО ЗАДАЧІ ОДРАЗУ (для всіх вибраних відділів)
+            // Вони збережуться разом із запитом.
             var taskStatusNew = _statusRepository.Find(s => s.Name == ServiceConstants.TaskStatusNew).FirstOrDefault();
-            if (taskStatusNew != null)
+
+            foreach (var deptId in targetDepartmentIds)
             {
-                foreach (var depId in targetDepartmentIds)
+                request.DepartmentTasks.Add(new DepartmentTask
                 {
-                    request.DepartmentTasks.Add(new DepartmentTask
-                    {
-                        DepartmentId = depId,
-                        StatusId = taskStatusNew.Id,
-                        AssignedAt = request.IsStrategic ? DateTime.Now : null
-                    });
-                }
+                    DepartmentId = deptId,
+                    StatusId = taskStatusNew!.Id,
+                    AssignedAt = DateTime.Now
+                });
+            }
+
+            // 2. ВИЗНАЧАЄМО СТАТУС ЗАПИТУ
+            bool isBoss = author.Position.Name == ServiceConstants.PositionHead ||
+                          author.Position.Name == ServiceConstants.PositionDeputyHead ||
+                          author.Position.Name == ServiceConstants.PositionDirector ||
+                          author.Position.Name == ServiceConstants.PositionDeputyDirector ||
+                          author.IsSystemAdmin;
+
+            if (isBoss)
+            {
+                // Бос -> Одразу "Новий" (Активний)
+                var statusNew = _statusRepository.Find(s => s.Name == ServiceConstants.StatusNew).FirstOrDefault();
+                request.GlobalStatusId = statusNew.Id;
+                _auditRepository.Add(new AuditLog { UserId = author.Id, Action = $"Created Request (Auto-Approved)" });
+            }
+            else
+            {
+                // Співробітник -> "Очікує погодження"
+                // Задачі вже створені, але інші відділи їх не побачать, поки статус Request != "New"
+                var statusPending = _statusRepository.Find(s => s.Name == ServiceConstants.StatusPendingApproval).FirstOrDefault();
+                request.GlobalStatusId = statusPending.Id;
+                _auditRepository.Add(new AuditLog { UserId = author.Id, Action = "Created Request (Pending Approval)" });
             }
 
             _requestRepository.Add(request);
-            _auditRepository.Add(new AuditLog { UserId = userId, RequestId = request.Id, Action = "Created Request" });
         }
 
-        // === ВИДАЛЕННЯ (Тільки Pending Approval) ===
+        // === РЕДАГУВАННЯ ===
+        // === ОНОВЛЕНО: Додано параметр targetDepartmentIds ===
+        public void UpdateRequest(Request request, Request updatedInfo, int userId, List<int> targetDepartmentIds)
+        {
+            // 1. Оновлюємо основні поля
+            if (request.GlobalStatus.Name == ServiceConstants.StatusPendingApproval)
+            {
+                request.Title = updatedInfo.Title;
+                request.Description = updatedInfo.Description;
+                request.CategoryId = updatedInfo.CategoryId;
+                request.PriorityId = updatedInfo.PriorityId;
+                request.Deadline = updatedInfo.Deadline;
+            }
+            else
+            {
+                request.Deadline = updatedInfo.Deadline;
+                // В активному стані можна також дозволити змінювати опис, якщо треба
+                request.Description = updatedInfo.Description;
+            }
+
+            // 2. ДОДАВАННЯ НОВИХ ВИКОНАВЦІВ (ВІДДІЛІВ)
+            // Знаходимо відділи, які є в новому списку, але немає в існуючих задачах
+            var existingDeptIds = request.DepartmentTasks.Select(dt => dt.DepartmentId).ToList();
+            var newDeptIds = targetDepartmentIds.Except(existingDeptIds).ToList();
+
+            if (newDeptIds.Any())
+            {
+                var taskStatusNew = _statusRepository.Find(s => s.Name == ServiceConstants.TaskStatusNew).FirstOrDefault();
+
+                foreach (var newId in newDeptIds)
+                {
+                    var newTask = new DepartmentTask
+                    {
+                        RequestId = request.Id,
+                        DepartmentId = newId,
+                        StatusId = taskStatusNew!.Id,
+                        AssignedAt = DateTime.Now
+                    };
+                    // Додаємо через репозиторій задач, бо request вже існує
+                    _taskRepository.Add(newTask);
+                }
+                _auditRepository.Add(new AuditLog { UserId = userId, RequestId = request.Id, Action = $"Added {newDeptIds.Count} Executors during Edit" });
+            }
+
+            _requestRepository.Update(request);
+            if (!newDeptIds.Any()) // Логуємо update тільки якщо не було додавання виконавців (щоб не дублювати)
+                _auditRepository.Add(new AuditLog { UserId = userId, RequestId = request.Id, Action = "Updated Request" });
+        }
+
         public void DeleteRequest(int requestId, int userId)
         {
             var request = _requestRepository.GetById(requestId);
-            if (request == null) throw new Exception("Запит не знайдено.");
-            if (request.AuthorId != userId) throw new Exception("Ви не є автором.");
-
-            var statusPending = _statusRepository.Find(s => s.Name == ServiceConstants.StatusPendingApproval).First();
-            
-            // Видалити можна тільки якщо ще не пішло в роботу (Pending)
-            if (request.GlobalStatusId != statusPending.Id)
-            {
-                throw new InvalidOperationException("Неможливо видалити запит, який вже розглядається або в роботі. Спробуйте скасувати його.");
-            }
-
-            // Оскільки у нас Restrict delete, чистимо залежності вручну
-            var comments = _commentRepository.Find(c => c.RequestId == requestId);
-            foreach(var c in comments) _commentRepository.Delete(c.Id);
-
-            var attaches = _attachmentRepository.Find(a => a.RequestId == requestId);
-            foreach(var a in attaches) _attachmentRepository.Delete(a.Id);
-
-            // Таски (якщо є)
-            if (request.DepartmentTasks != null)
-            {
-                // Тут треба доступ до TaskRepository, або припускаємо, що EF завантажив їх
-                // Якщо Generic Repository не дозволяє видалити range, робимо це пізніше.
-                // Але оскільки Tasks є навігаційною властивістю, при видаленні Request EF спробує видалити їх.
-                // Якщо налаштовано Cascade в БД - видалиться саме. Якщо Restrict - впаде.
-                // Враховуючи наш AppDbContext, ми ставили Restrict. 
-                // Тому краще використовувати IRepository<DepartmentTask> тут, але його немає в конструкторі.
-                // Додамо заглушку або розширимо сервіс за потребою. Поки сподіваємось на коректну роботу EF.
-            }
+            if (request == null) return;
+            if (request.AuthorId != userId) throw new Exception("Тільки автор може видаляти запит.");
+            if (request.GlobalStatus.Name != ServiceConstants.StatusPendingApproval) throw new Exception("Неможливо видалити активний запит.");
 
             _requestRepository.Delete(requestId);
             _auditRepository.Add(new AuditLog { UserId = userId, RequestId = requestId, Action = "Deleted Request" });
         }
 
-        // === СКАСУВАННЯ (Cancel) ===
         public void CancelRequest(int requestId, int userId)
         {
             var request = _requestRepository.GetById(requestId);
             if (request == null) return;
-            if (request.AuthorId != userId) throw new Exception("Ви не є автором.");
 
-            // Можна скасувати майже все, крім вже завершеного
-            var completedStatus = _statusRepository.Find(s => s.Name == ServiceConstants.StatusCompleted).First();
-            
-            if (request.GlobalStatusId == completedStatus.Id)
-                throw new InvalidOperationException("Завершений запит не можна скасувати.");
-
-            var canceledStatus = _statusRepository.Find(s => s.Name == ServiceConstants.StatusCanceled).First();
-            request.GlobalStatusId = canceledStatus.Id;
-            request.CompletedAt = DateTime.Now; // Фіксуємо дату закриття
+            var statusCanceled = _statusRepository.Find(s => s.Name == ServiceConstants.StatusCanceled).FirstOrDefault();
+            request.GlobalStatusId = statusCanceled!.Id;
+            request.CompletedAt = DateTime.Now;
 
             _requestRepository.Update(request);
             _auditRepository.Add(new AuditLog { UserId = userId, RequestId = requestId, Action = "Canceled Request" });
         }
 
-        // === РЕДАГУВАННЯ ===
-        public void UpdateRequest(Request updatedInfo, int userId)
-        {
-            var request = _requestRepository.GetById(updatedInfo.Id);
-            if (request == null) throw new Exception("Запит не знайдено.");
-            
-            // Отримуємо статуси для перевірки
-            var statusPending = _statusRepository.Find(s => s.Name == ServiceConstants.StatusPendingApproval).First();
-            var statusNew = _statusRepository.Find(s => s.Name == ServiceConstants.StatusNew).First();
-            
-            // 1. Повне редагування (Поки "На погодженні" або "Новий" для директорів)
-            if (request.GlobalStatusId == statusPending.Id || request.GlobalStatusId == statusNew.Id)
-            {
-                request.Title = updatedInfo.Title;
-                request.Description = updatedInfo.Description;
-                request.PriorityId = updatedInfo.PriorityId;
-                request.CategoryId = updatedInfo.CategoryId;
-                request.Deadline = updatedInfo.Deadline;
-                
-                // Зміна відділів тут складна (треба синхронізувати список DepartmentTasks), 
-                // тому поки що в MVP ми не дозволяємо міняти відділи при редагуванні.
-            }
-            // 2. Часткове редагування (Вже в роботі)
-            else
-            {
-                // Дозволяємо міняти тільки дедлайн (якщо треба продовжити)
-                // Тема і суть завдання вже зафіксовані
-                request.Deadline = updatedInfo.Deadline;
-            }
-
-            _requestRepository.Update(request);
-            _auditRepository.Add(new AuditLog { UserId = userId, RequestId = request.Id, Action = "Updated Request" });
-        }
-
-        // Допоміжні
         public void AddAttachment(int requestId, string fileName, byte[] data, int userId)
         {
             _attachmentRepository.Add(new RequestAttachment
@@ -176,7 +178,6 @@ namespace Requests.Services
                 FileData = data,
                 UploadedAt = DateTime.Now
             });
-            _auditRepository.Add(new AuditLog { UserId = userId, RequestId = requestId, Action = "Added Attachment" });
         }
 
         public void AddComment(int requestId, int userId, string text)

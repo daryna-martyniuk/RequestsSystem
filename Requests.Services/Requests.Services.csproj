@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.4.1" />
+    <PackageReference Include="QuestPDF" Version="2025.12.3.1-alpha2" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Requests.Data\Requests.Data.csproj" />
     <ProjectReference Include="..\Requests.Repositories\Requests.Repositories.csproj" />
   </ItemGroup>

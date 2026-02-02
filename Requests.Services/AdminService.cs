@@ -16,19 +16,22 @@ namespace Requests.Services
         private readonly IRepository<AuditLog> _auditRepository;
         private readonly IRepository<Department> _departmentRepository;
         private readonly IRepository<Position> _positionRepository;
+        private readonly IRepository<RequestCategory> _categoryRepository;
 
         public AdminService(
             AppDbContext context,
             UserRepository userRepository,
             IRepository<AuditLog> auditRepository,
             IRepository<Department> departmentRepository,
-            IRepository<Position> positionRepository)
+            IRepository<Position> positionRepository,
+            IRepository<RequestCategory> categoryRepository)
         {
             _context = context;
             _userRepository = userRepository;
             _auditRepository = auditRepository;
             _departmentRepository = departmentRepository;
             _positionRepository = positionRepository;
+            _categoryRepository = categoryRepository;
         }
 
         public void CreateUser(User user, string rawPassword, int adminId)
@@ -149,5 +152,32 @@ namespace Requests.Services
         }
 
         public IEnumerable<AuditLog> GetSystemLogs() => _auditRepository.GetAll().OrderByDescending(l => l.Timestamp);
+
+        // === РОБОТА З КАТЕГОРІЯМИ (НОВЕ) ===
+        public IEnumerable<RequestCategory> GetAllCategories() => _categoryRepository.GetAll();
+
+        public void AddCategory(string name, int adminId)
+        {
+            if (_categoryRepository.Find(c => c.Name == name).Any())
+                throw new Exception("Категорія з такою назвою вже існує.");
+
+            _categoryRepository.Add(new RequestCategory { Name = name });
+            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Created Category: {name}" });
+        }
+
+        public void DeleteCategory(int id, int adminId)
+        {
+            // Перевірка, чи використовується категорія в запитах
+            // Тут потрібен доступ до requests, або перевірка через БД (якщо foreign key restrict - то вилетить помилка)
+            try
+            {
+                _categoryRepository.Delete(id);
+                _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Deleted Category ID: {id}" });
+            }
+            catch (Exception)
+            {
+                throw new Exception("Не можна видалити категорію, яка використовується в активних запитах.");
+            }
+        }
     }
 }

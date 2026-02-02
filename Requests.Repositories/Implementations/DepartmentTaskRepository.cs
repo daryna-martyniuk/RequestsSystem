@@ -32,5 +32,22 @@ namespace Requests.Repositories.Implementations
             // Але це стосується Requests, тому логічніше це залишити в RequestRepository
             return null;
         }
+
+        public IEnumerable<DepartmentTask> GetIncomingTasks(int departmentId, string taskStatusDone, string globalStatusPending)
+        {
+            return _dbSet
+                .Include(t => t.Request)
+                    .ThenInclude(r => r.Author)   // Щоб бачити, хто створив
+                .Include(t => t.Request)
+                    .ThenInclude(r => r.Priority) // Щоб бачити пріоритет
+                .Include(t => t.Status)
+                .Where(t =>
+                    t.DepartmentId == departmentId &&
+                    t.Status.Name != taskStatusDone &&
+                    t.Request.GlobalStatus.Name != globalStatusPending
+                )
+                .OrderByDescending(t => t.AssignedAt) // Спочатку найновіші
+                .ToList();
+        }
     }
 }

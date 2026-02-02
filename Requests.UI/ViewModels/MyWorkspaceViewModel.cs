@@ -11,21 +11,24 @@ namespace Requests.UI.ViewModels
     public class MyWorkspaceViewModel : ViewModelBase
     {
         private readonly EmployeeService _employeeService;
-        // Додамо ManagerService, щоб отримати "На погодження"
-        // (Або можна розширити EmployeeService, але це порушує SRP)
         private readonly ManagerService _managerService;
         private readonly User _currentUser;
 
         // Колекції
         public ObservableCollection<Request> MyRequests { get; set; }
-        public ObservableCollection<DepartmentTask> MyTasks { get; set; } // Мої завдання
-        public ObservableCollection<Request> PendingApprovals { get; set; } // На погодження
+        public ObservableCollection<DepartmentTask> MyTasks { get; set; }
+        public ObservableCollection<Request> PendingApprovals { get; set; }
 
-        // Видимість секції "На погодження"
+        // НОВЕ: Колекція вхідних задач для відділу
+        public ObservableCollection<DepartmentTask> IncomingDepartmentTasks { get; set; }
+
         public bool IsManager =>
             _currentUser.Position.Name == ServiceConstants.PositionHead ||
             _currentUser.Position.Name == ServiceConstants.PositionDirector ||
-            _currentUser.Position.Name == ServiceConstants.PositionDeputyHead; // + Заступники
+            _currentUser.Position.Name == ServiceConstants.PositionDeputyHead;
+
+        // Видимість вкладки для керівника
+        public Visibility ManagerVisibility => IsManager ? Visibility.Visible : Visibility.Collapsed;
 
         public ICommand CreateRequestCommand { get; }
         public ICommand RefreshCommand { get; }
@@ -33,26 +36,29 @@ namespace Requests.UI.ViewModels
         public ICommand EditRequestCommand { get; }
         public ICommand DeleteRequestCommand { get; }
         public ICommand CancelRequestCommand { get; }
-
-        // Команди погодження
         public ICommand ApproveCommand { get; }
         public ICommand RejectCommand { get; }
 
-        public MyWorkspaceViewModel(User currentUser, EmployeeService employeeService)
-        {
-            _currentUser = currentUser;
-            _employeeService = employeeService;
+        // НОВІ КОМАНДИ
+        public ICommand AssignExecutorCommand { get; }
+        public ICommand ForwardTaskCommand { get; }
+        public ICommand DiscussTaskCommand { get; }
 
-            // Тимчасово створюємо ManagerService вручну (або через App.Factory)
-            // В ідеалі передати через конструктор
-            if (IsManager)
-            {
-                _managerService = App.CreateManagerService(); // Потрібно додати цей метод в App.xaml.cs
-            }
+        public MyWorkspaceViewModel(User user, EmployeeService service)
+        {
+            _currentUser = user;
+            _employeeService = service;
+            _managerService = App.CreateManagerService();
+
+            MyRequests = new ObservableCollection<Request>();
+            MyTasks = new ObservableCollection<DepartmentTask>();
+            PendingApprovals = new ObservableCollection<Request>();
+            IncomingDepartmentTasks = new ObservableCollection<DepartmentTask>();
 
             CreateRequestCommand = new RelayCommand(CreateRequest);
             RefreshCommand = new RelayCommand(o => LoadData());
             OpenDetailsCommand = new RelayCommand(OpenDetails);
+
             EditRequestCommand = new RelayCommand(EditRequest);
             DeleteRequestCommand = new RelayCommand(DeleteRequest);
             CancelRequestCommand = new RelayCommand(CancelRequest);
@@ -60,37 +66,127 @@ namespace Requests.UI.ViewModels
             ApproveCommand = new RelayCommand(Approve);
             RejectCommand = new RelayCommand(Reject);
 
+            // Ініціалізація нових команд
+            AssignExecutorCommand = new RelayCommand(AssignExecutor);
+            ForwardTaskCommand = new RelayCommand(ForwardTask);
+            DiscussTaskCommand = new RelayCommand(DiscussTask);
+
             LoadData();
         }
 
         private void LoadData()
         {
-            // 1. Мої запити
-            var requests = _employeeService.GetMyRequests(_currentUser.Id);
-            MyRequests = new ObservableCollection<Request>(requests);
+            MyRequests.Clear();
+            var reqs = _employeeService.GetMyRequests(_currentUser.Id);
+            foreach (var r in reqs) MyRequests.Add(r);
 
-            // 2. Мої завдання
+            MyTasks.Clear();
             var tasks = _employeeService.GetMyTasks(_currentUser.Id);
-            MyTasks = new ObservableCollection<DepartmentTask>(tasks);
+            foreach (var t in tasks) MyTasks.Add(t);
 
-            // 3. На погодження (тільки для керівників)
-            if (IsManager && _managerService != null)
+            if (IsManager)
             {
-                var pending = _managerService.GetPendingApprovals(_currentUser.DepartmentId);
-                PendingApprovals = new ObservableCollection<Request>(pending);
-                OnPropertyChanged(nameof(PendingApprovals));
-            }
+                PendingApprovals.Clear();
+                var approvals = _managerService.GetPendingApprovals(_currentUser.DepartmentId);
+                foreach (var a in approvals) PendingApprovals.Add(a);
 
-            OnPropertyChanged(nameof(MyRequests));
-            OnPropertyChanged(nameof(MyTasks));
+                // Завантажуємо вхідні задачі на відділ
+                IncomingDepartmentTasks.Clear();
+                var incoming = _managerService.GetIncomingTasks(_currentUser.DepartmentId);
+                foreach (var t in incoming) IncomingDepartmentTasks.Add(t);
+            }
         }
+
+        // === ЛОГІКА РОЗПОДІЛУ ЗАДАЧ ===
+
+        private void AssignExecutor(object obj)
+        {
+            if (obj is DepartmentTask task)
+            {
+                // Отримуємо список співробітників мого відділу
+                var employees = _managerService.GetMyEmployees(_currentUser.DepartmentId);
+
+                // Відкриваємо вікно вибору
+                var dialog = new SelectUserWindow(employees);
+                if (dialog.ShowDialog() == true)
+                {
+                    try
+                    {
+                        var selectedEmployee = dialog.SelectedUser;
+                        _managerService.AssignExecutor(task.Id, selectedEmployee.Id, _currentUser.Id);
+                        MessageBox.Show($"Виконавця {selectedEmployee.FullName} призначено!");
+                        LoadData();
+                    }
+                    catch (Exception ex) { MessageBox.Show("Помилка: " + ex.Message); }
+                }
+            }
+        }
+
+        private void ForwardTask(object obj)
+        {
+            if (obj is DepartmentTask task)
+            {
+                // Відкриваємо вікно вибору відділу
+                var dialog = new SelectDepartmentWindow();
+                if (dialog.ShowDialog() == true)
+                {
+                    try
+                    {
+                        var newDept = dialog.SelectedDepartment;
+                        if (newDept.Id == _currentUser.DepartmentId)
+                        {
+                            MessageBox.Show("Не можна переслати задачу на свій же відділ!");
+                            return;
+                        }
+
+                        if (MessageBox.Show($"Переслати задачу у відділ '{newDept.Name}'?", "Підтвердження", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                        {
+                            _managerService.ForwardTask(task.Id, newDept.Id, _currentUser.Id);
+                            MessageBox.Show("Задачу переслано.");
+                            LoadData();
+                        }
+                    }
+                    catch (Exception ex) { MessageBox.Show("Помилка: " + ex.Message); }
+                }
+            }
+        }
+
+        private void DiscussTask(object obj)
+        {
+            if (obj is DepartmentTask task)
+            {
+                // Використовуємо EditNameWindow для введення коментаря (щоб не створювати нове вікно)
+                var dialog = new EditNameWindow("");
+                dialog.Title = "Коментар до обговорення";
+                // Тут можна було б змінити текст Label у вікні, але не будемо ускладнювати
+
+                if (dialog.ShowDialog() == true)
+                {
+                    try
+                    {
+                        string comment = dialog.ResultName;
+                        _managerService.SetRequestToDiscussion(task.RequestId, _currentUser.Id, comment);
+                        MessageBox.Show("Запит повернуто на уточнення/обговорення.");
+                        LoadData();
+                    }
+                    catch (Exception ex) { MessageBox.Show("Помилка: " + ex.Message); }
+                }
+            }
+        }
+
+        // ... Інші методи (Approve, Reject, Create...) без змін ...
 
         private void Approve(object obj)
         {
             if (obj is Request req)
             {
-                _managerService.ApproveRequest(req.Id, _currentUser.Id);
-                LoadData();
+                try
+                {
+                    _managerService.ApproveRequest(req.Id, _currentUser.Id, req);
+                    MessageBox.Show("Запит погоджено!");
+                    LoadData();
+                }
+                catch (Exception ex) { MessageBox.Show("Помилка: " + ex.Message); }
             }
         }
 
@@ -98,29 +194,33 @@ namespace Requests.UI.ViewModels
         {
             if (obj is Request req)
             {
-                _managerService.RejectRequest(req.Id, _currentUser.Id);
-                LoadData();
+                if (MessageBox.Show("Відхилити запит?", "Підтвердження", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                {
+                    try
+                    {
+                        _managerService.RejectRequest(req.Id, _currentUser.Id, "Відхилено керівником");
+                        LoadData();
+                    }
+                    catch (Exception ex) { MessageBox.Show("Помилка: " + ex.Message); }
+                }
             }
         }
 
         private void CreateRequest(object obj)
         {
-            // Виклик конструктора для СТВОРЕННЯ (null)
-            var window = new Requests.UI.Views.CreateRequestWindow(_currentUser, _employeeService, null);
-            if (window.ShowDialog() == true) LoadData();
+            var win = new CreateRequestWindow(_currentUser, _employeeService);
+            if (win.ShowDialog() == true) LoadData();
         }
 
         private void EditRequest(object obj)
         {
             if (obj is Request req)
             {
-                // Завантажуємо повний об'єкт, щоб мати доступ до Tasks
                 var fullReq = _employeeService.GetRequestDetails(req.Id);
                 if (fullReq != null)
                 {
-                    // Виклик конструктора для РЕДАГУВАННЯ
-                    var window = new Requests.UI.Views.CreateRequestWindow(_currentUser, _employeeService, fullReq);
-                    if (window.ShowDialog() == true) LoadData();
+                    var win = new CreateRequestWindow(_currentUser, _employeeService, fullReq);
+                    if (win.ShowDialog() == true) LoadData();
                 }
             }
         }
@@ -129,14 +229,14 @@ namespace Requests.UI.ViewModels
         {
             if (obj is Request req)
             {
-                if (MessageBox.Show("Ви точно хочете видалити цей запит?", "Підтвердження", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                if (MessageBox.Show("Видалити чернетку?", "Підтвердження", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
                 {
                     try
                     {
                         _employeeService.DeleteRequest(req.Id, _currentUser.Id);
                         LoadData();
                     }
-                    catch (Exception ex) { MessageBox.Show(ex.Message, "Помилка"); }
+                    catch (Exception ex) { MessageBox.Show(ex.Message); }
                 }
             }
         }
@@ -152,7 +252,7 @@ namespace Requests.UI.ViewModels
                         _employeeService.CancelRequest(req.Id, _currentUser.Id);
                         LoadData();
                     }
-                    catch (Exception ex) { MessageBox.Show(ex.Message, "Помилка"); }
+                    catch (Exception ex) { MessageBox.Show(ex.Message); }
                 }
             }
         }

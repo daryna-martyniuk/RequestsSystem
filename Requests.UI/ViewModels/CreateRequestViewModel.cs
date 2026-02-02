@@ -158,41 +158,54 @@ namespace Requests.UI.ViewModels
 
         private void Save(object obj)
         {
-            if (CanEditCoreFields) // Валідація тільки якщо ми можемо це міняти
+            // Валідація основних полів (спрощена, щоб дозволити додавання відділів навіть при CanEditCoreFields=false, якщо логіка дозволяє)
+            // Але за твоєю логікою CanEditCoreFields блокує все. 
+            // Якщо ми хочемо дозволити додавати виконавців завжди, треба змінити логіку UI (розблокувати список відділів).
+            // Поки що вважаємо, що редагування доступне.
+
+            if (CanEditCoreFields)
             {
                 if (string.IsNullOrWhiteSpace(Title)) { MessageBox.Show("Вкажіть тему!"); return; }
                 if (SelectedCategory == null) { MessageBox.Show("Оберіть категорію!"); return; }
+            }
 
-                // Перевірка відділів тільки при створенні (бо при редагуванні ми поки не міняємо їх)
-                if (!IsEditMode)
-                {
-                    var targets = Departments.Where(d => d.IsSelected).Select(d => d.Id).ToList();
-                    if (!targets.Any()) { MessageBox.Show("Оберіть виконавців!"); return; }
-                }
+            // Перевірка, чи обрано відділи (для обох режимів важливо мати хоча б одного)
+            if (!Departments.Any(d => d.IsSelected))
+            {
+                MessageBox.Show("Оберіть хоча б один відділ-виконавець!");
+                return;
             }
 
             try
             {
                 if (IsEditMode)
                 {
-                    // Оновлюємо існуючий
-                    _existingRequest.Title = Title;
-                    _existingRequest.Description = Description;
-                    _existingRequest.PriorityId = SelectedPriority?.Id ?? _existingRequest.PriorityId;
-                    _existingRequest.CategoryId = SelectedCategory?.Id ?? _existingRequest.CategoryId;
-                    _existingRequest.Deadline = Deadline;
+                    // === ОНОВЛЕННЯ (ТЕПЕР З ДОДАВАННЯМ ВИКОНАВЦІВ) ===
+                    var updateInfo = new Request
+                    {
+                        Title = Title,
+                        Description = Description,
+                        PriorityId = SelectedPriority?.Id ?? _existingRequest.PriorityId,
+                        CategoryId = SelectedCategory?.Id ?? _existingRequest.CategoryId,
+                        Deadline = Deadline
+                    };
 
-                    _employeeService.UpdateRequest(_existingRequest, _currentUser.Id);
+                    // Збираємо список ID вибраних відділів
+                    var targetIds = Departments.Where(d => d.IsSelected).Select(d => d.Id).ToList();
+
+                    // Передаємо в сервіс: (Оригінал, Інфо, Юзер, СПИСОК ВІДДІЛІВ)
+                    _employeeService.UpdateRequest(_existingRequest, updateInfo, _currentUser.Id, targetIds);
 
                     if (HasAttachment)
                         _employeeService.AddAttachment(_existingRequest.Id, AttachmentName, _attachmentData, _currentUser.Id);
 
-                    MessageBox.Show("Запит оновлено!");
+                    MessageBox.Show("Запит оновлено! Нові виконавці додані (якщо були).");
                 }
                 else
                 {
-                    // Створюємо новий
-                    var targets = Departments.Where(d => d.IsSelected).Select(d => d.Id).ToList();
+                    // === СТВОРЕННЯ ===
+                    var targetIds = Departments.Where(d => d.IsSelected).Select(d => d.Id).ToList();
+
                     var req = new Request
                     {
                         Title = Title,
@@ -201,7 +214,8 @@ namespace Requests.UI.ViewModels
                         CategoryId = SelectedCategory.Id,
                         Deadline = Deadline
                     };
-                    _employeeService.CreateRequest(req, _currentUser.Id, targets);
+
+                    _employeeService.CreateRequest(req, _currentUser, targetIds);
 
                     if (HasAttachment)
                         _employeeService.AddAttachment(req.Id, AttachmentName, _attachmentData, _currentUser.Id);
@@ -213,6 +227,34 @@ namespace Requests.UI.ViewModels
             catch (Exception ex) { MessageBox.Show($"Помилка: {ex.Message}"); }
         }
 
+        private void InitializeFromRequest(Request req)
+        {
+            Title = req.Title;
+            Description = req.Description;
+            Deadline = req.Deadline ?? DateTime.Now;
+
+            SelectedPriority = Priorities.FirstOrDefault(p => p.Id == req.PriorityId);
+            SelectedCategory = Categories.FirstOrDefault(c => c.Id == req.CategoryId);
+
+            // Відмічаємо відділи, які вже мають задачі по цьому запиту
+            if (req.DepartmentTasks != null)
+            {
+                var assignedDeptIds = req.DepartmentTasks.Select(t => t.DepartmentId).ToList();
+                foreach (var dept in Departments)
+                {
+                    if (assignedDeptIds.Contains(dept.Id))
+                    {
+                        dept.IsSelected = true;
+                    }
+                }
+            }
+
+            if (req.GlobalStatus.Name != ServiceConstants.StatusPendingApproval)
+            {
+                CanEditCoreFields = false;
+                OnPropertyChanged(nameof(CanEditCoreFields));
+            }
+        }
         private void Cancel(object obj) => _closeAction(false);
     }
 }
