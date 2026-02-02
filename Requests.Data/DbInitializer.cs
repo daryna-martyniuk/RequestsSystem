@@ -1,4 +1,5 @@
 ﻿using Requests.Data.Models;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -11,73 +12,68 @@ namespace Requests.Data
         {
             context.Database.EnsureCreated();
 
-            if (!context.Departments.Any())
+            // 1. Відділи
+            var departments = new[] { "Адміністрація", "IT Відділ", "Бухгалтерія", "HR Відділ", "Юридичний відділ", "АГВ" };
+            foreach (var depName in departments)
             {
-                context.Departments.AddRange(
-                    new Department { Name = "Адміністрація" },
-                    new Department { Name = "IT Відділ" },
-                    new Department { Name = "Бухгалтерія" },
-                    new Department { Name = "HR Відділ" },
-                    new Department { Name = "Юридичний відділ" },
-                    new Department { Name = "АГВ" } 
-                );
-                context.SaveChanges();
+                if (!context.Departments.Any(d => d.Name == depName))
+                    context.Departments.Add(new Department { Name = depName });
             }
+            context.SaveChanges();
 
-            if (!context.Positions.Any())
+            // 2. Посади
+            var positions = new[] { "Директор", "Заступник директора", "Керівник відділу", "Заступник керівника", "Співробітник", "Стажер" };
+            foreach (var posName in positions)
             {
-                context.Positions.AddRange(
-                    new Position { Name = "Директор" },
-                    new Position { Name = "Заступник директора" },
-                    new Position { Name = "Керівник відділу" },
-                    new Position { Name = "Заступник керівника" },
-                    new Position { Name = "Співробітник" },
-                    new Position { Name = "Адміністратор" }
-                );
-                context.SaveChanges();
+                if (!context.Positions.Any(p => p.Name == posName))
+                    context.Positions.Add(new Position { Name = posName });
             }
+            context.SaveChanges();
 
-            if (!context.RequestStatuses.Any())
+            // 3. Статуси (ДОДАЄМО ТІЛЬКИ ВІДСУТНІ)
+            var statuses = new[]
+            { 
+                // Глобальні статуси
+                "Новий", "Очікує погодження", "На уточненні", "В роботі",
+                "Відхилено", "Скасовано", "Завершено", 
+                
+                // Локальні статуси задач (яких не вистачало)
+                "На паузі", "Виконано"
+            };
+
+            foreach (var statusName in statuses)
             {
-                context.RequestStatuses.AddRange(
-                    new RequestStatus { Name = "Новий" },
-                    new RequestStatus { Name = "Очікує погодження" },
-                    new RequestStatus { Name = "На уточненні" },
-                    new RequestStatus { Name = "В роботі" },
-                    new RequestStatus { Name = "Відхилено" },
-                    new RequestStatus { Name = "Скасовано" },
-                    new RequestStatus { Name = "Завершено" }
-                );
-                context.SaveChanges();
+                // Якщо такого статусу ще немає в базі - додаємо
+                if (!context.RequestStatuses.Any(s => s.Name == statusName))
+                {
+                    context.RequestStatuses.Add(new RequestStatus { Name = statusName });
+                }
             }
+            context.SaveChanges();
 
-            if (!context.RequestPriorities.Any())
+            // 4. Пріоритети
+            var priorities = new[] { "Низький", "Середній", "Високий", "Критичний" };
+            foreach (var pName in priorities)
             {
-                context.RequestPriorities.AddRange(
-                    new RequestPriority { Name = "Низький" },
-                    new RequestPriority { Name = "Середній" },
-                    new RequestPriority { Name = "Високий" },
-                    new RequestPriority { Name = "Критичний" }
-                );
-                context.SaveChanges();
+                if (!context.RequestPriorities.Any(p => p.Name == pName))
+                    context.RequestPriorities.Add(new RequestPriority { Name = pName });
             }
+            context.SaveChanges();
 
-            if (!context.RequestCategories.Any())
+            // 5. Категорії
+            var categories = new[] { "Технічна підтримка", "Закупівля обладнання", "Доступ до ресурсів", "Ремонт", "Інше" };
+            foreach (var cName in categories)
             {
-                context.RequestCategories.AddRange(
-                    new RequestCategory { Name = "Технічна підтримка" },
-                    new RequestCategory { Name = "Закупівля обладнання" },
-                    new RequestCategory { Name = "Доступ до ресурсів" },
-                    new RequestCategory { Name = "Ремонт" },
-                    new RequestCategory { Name = "Інше" }
-                );
-                context.SaveChanges();
+                if (!context.RequestCategories.Any(c => c.Name == cName))
+                    context.RequestCategories.Add(new RequestCategory { Name = cName });
             }
+            context.SaveChanges();
 
-            if (!context.Users.Any())
+            // 6. Адмін
+            if (!context.Users.Any(u => u.Username == "admin"))
             {
-                var adminDep = context.Departments.First(d => d.Name == "IT Відділ");
-                var adminPos = context.Positions.First(p => p.Name == "Адміністратор");
+                var adminDep = context.Departments.FirstOrDefault(d => d.Name == "IT Відділ") ?? context.Departments.First();
+                var adminPos = context.Positions.FirstOrDefault(p => p.Name == "Адміністратор") ?? context.Positions.First();
 
                 context.Users.Add(new User
                 {
@@ -100,10 +96,7 @@ namespace Requests.Data
             {
                 var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(input));
                 var builder = new StringBuilder();
-                foreach (var b in bytes)
-                {
-                    builder.Append(b.ToString("x2"));
-                }
+                foreach (var b in bytes) builder.Append(b.ToString("x2"));
                 return builder.ToString();
             }
         }

@@ -69,11 +69,12 @@ namespace Requests.Services
         // === ВХІДНІ ЗАДАЧІ НА ВІДДІЛ ===
         public IEnumerable<DepartmentTask> GetIncomingTasks(int departmentId)
         {
-            // Використовуємо метод репозиторію, передаючи константи з сервісу
             return _taskRepository.GetIncomingTasks(
                 departmentId,
                 ServiceConstants.TaskStatusDone,
-                ServiceConstants.StatusPendingApproval
+                ServiceConstants.StatusPendingApproval,
+                ServiceConstants.StatusCanceled,
+                ServiceConstants.StatusRejected
             );
         }
 
