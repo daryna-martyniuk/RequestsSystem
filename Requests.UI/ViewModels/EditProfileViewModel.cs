@@ -76,7 +76,7 @@ namespace Requests.UI.ViewModels
 
                 // Використовуємо AdminService.EditUser (або створити окремий метод UpdateProfile в EmployeeService)
                 // Оскільки AdminService.EditUser приймає adminId для логів, передаємо ID самого юзера
-                _adminService.EditUser(updatedUser, _user.Id);
+                _adminService.UpdateUser(updatedUser, _user.Id);
 
                 // Оновлюємо локальний об'єкт _user (щоб у UI відобразились зміни одразу)
                 _user.FullName = FullName;

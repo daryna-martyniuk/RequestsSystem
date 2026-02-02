@@ -16,53 +16,14 @@ namespace Requests.UI.ViewModels
         private readonly int _adminId;
         private readonly Action<bool> _closeWindowAction;
 
-        // Поля для редагування
+        // Поля
         private string _fullName;
         private string _username;
         private string _email;
         private bool _isActive;
         private bool _isSystemAdmin;
-
         private Department _selectedDepartment;
         private Position _selectedPosition;
-
-        public ObservableCollection<Department> Departments { get; }
-        public ObservableCollection<Position> Positions { get; }
-
-        public EditUserViewModel(User user, AdminService adminService, int adminId, Action<bool> closeWindowAction)
-        {
-            _user = user;
-            _adminService = adminService;
-            _adminId = adminId;
-            _closeWindowAction = closeWindowAction;
-
-            // Завантажуємо списки
-            Departments = new ObservableCollection<Department>(_adminService.GetAllDepartments());
-            Positions = new ObservableCollection<Position>(_adminService.GetAllPositions());
-
-            // Ініціалізація даних з моделі
-            FullName = user.FullName;
-            Username = user.Username;
-            Email = user.Email;
-            IsActive = user.IsActive;
-            IsSystemAdmin = user.IsSystemAdmin;
-
-            // Вибір поточних значень у списках
-            SelectedDepartment = Departments.FirstOrDefault(d => d.Id == user.DepartmentId);
-            SelectedPosition = Positions.FirstOrDefault(p => p.Id == user.PositionId);
-
-            SaveCommand = new RelayCommand(Save);
-            CancelCommand = new RelayCommand(Cancel);
-        }
-
-        public bool IsEditMode => _user.Id != 0;
-        public string WindowTitle => IsEditMode ? $"Редагування: {_user.Username}" : "Новий співробітник";
-
-        // Пароль видимий ЗАВЖДИ (адмін може захотіти його скинути)
-        public Visibility PasswordVisibility => Visibility.Visible;
-
-        // Підказка для поля пароля
-        public string PasswordPlaceholder => IsEditMode ? "(Залиште пустим, щоб не змінювати)" : "(Обов'язково для нового)";
 
         public string FullName { get => _fullName; set { _fullName = value; OnPropertyChanged(); } }
         public string Username { get => _username; set { _username = value; OnPropertyChanged(); } }
@@ -73,54 +34,79 @@ namespace Requests.UI.ViewModels
         public Department SelectedDepartment { get => _selectedDepartment; set { _selectedDepartment = value; OnPropertyChanged(); } }
         public Position SelectedPosition { get => _selectedPosition; set { _selectedPosition = value; OnPropertyChanged(); } }
 
+        public ObservableCollection<Department> Departments { get; }
+        public ObservableCollection<Position> Positions { get; }
+
         public ICommand SaveCommand { get; }
         public ICommand CancelCommand { get; }
 
+        public bool IsEditMode => _user.Id != 0;
+        public string WindowTitle => IsEditMode ? $"Редагування: {_user.Username}" : "Новий користувач";
+
+        public EditUserViewModel(User user, AdminService adminService, int adminId, Action<bool> closeWindowAction)
+        {
+            _user = user;
+            _adminService = adminService;
+            _adminId = adminId;
+            _closeWindowAction = closeWindowAction;
+
+            Departments = new ObservableCollection<Department>(_adminService.GetAllDepartments());
+            Positions = new ObservableCollection<Position>(_adminService.GetAllPositions());
+
+            FullName = user.FullName;
+            Username = user.Username;
+            Email = user.Email;
+            IsActive = user.IsActive;
+            IsSystemAdmin = user.IsSystemAdmin;
+
+            SelectedDepartment = Departments.FirstOrDefault(d => d.Id == user.DepartmentId) ?? Departments.FirstOrDefault();
+            SelectedPosition = Positions.FirstOrDefault(p => p.Id == user.PositionId) ?? Positions.FirstOrDefault();
+
+            SaveCommand = new RelayCommand(Save);
+            CancelCommand = new RelayCommand(Cancel);
+        }
+
         private void Save(object parameter)
         {
+            if (string.IsNullOrWhiteSpace(FullName) || string.IsNullOrWhiteSpace(Username))
+            {
+                MessageBox.Show("ПІБ та Логін обов'язкові!", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var passwordBox = parameter as PasswordBox;
+            string password = passwordBox?.Password;
+
+            // Заповнюємо об'єкт (але не зберігаємо в базу напряму)
+            // Ми передаємо цей об'єкт у сервіс як DTO
+            var userDto = new User
+            {
+                Id = _user.Id, // Важливо для Update
+                Username = Username,
+                FullName = FullName,
+                Email = Email,
+                IsActive = IsActive,
+                IsSystemAdmin = IsSystemAdmin,
+                DepartmentId = SelectedDepartment.Id,
+                PositionId = SelectedPosition.Id
+            };
+
             try
             {
-                if (SelectedDepartment == null || SelectedPosition == null)
-                {
-                    MessageBox.Show("Оберіть відділ та посаду!", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-                if (string.IsNullOrWhiteSpace(FullName) || string.IsNullOrWhiteSpace(Username))
-                {
-                    MessageBox.Show("Заповніть ПІБ та Логін!", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                // Оновлюємо об'єкт (крім пароля поки що)
-                _user.FullName = FullName;
-                _user.Username = Username;
-                _user.Email = Email;
-                _user.DepartmentId = SelectedDepartment.Id;
-                _user.PositionId = SelectedPosition.Id;
-                _user.IsSystemAdmin = IsSystemAdmin;
-                _user.IsActive = IsActive;
-
-                // Отримуємо пароль з PasswordBox
-                var passwordBox = parameter as PasswordBox;
-                string password = passwordBox?.Password;
-
                 if (IsEditMode)
                 {
-                    // === РЕДАГУВАННЯ ===
-                    _adminService.EditUser(_user, _adminId);
+                    // === ОНОВЛЕННЯ ===
+                    _adminService.UpdateUser(userDto, _adminId);
 
-                    if (_user.IsActive != IsActive)
-                        _adminService.ToggleUserActivity(_user.Id, IsActive, _adminId);
-
-                    // Зміна пароля ТІЛЬКИ якщо поле не пусте
+                    // Зміна пароля (опціонально)
                     if (!string.IsNullOrWhiteSpace(password))
                     {
                         _adminService.ForceChangePassword(_user.Id, password, _adminId);
-                        MessageBox.Show("Дані та пароль оновлено!", "Успіх");
+                        MessageBox.Show("Дані користувача та пароль оновлено!", "Успіх");
                     }
                     else
                     {
-                        MessageBox.Show("Дані оновлено (пароль без змін).", "Успіх");
+                        MessageBox.Show("Дані користувача оновлено!", "Успіх");
                     }
                 }
                 else
@@ -128,10 +114,10 @@ namespace Requests.UI.ViewModels
                     // === СТВОРЕННЯ ===
                     if (string.IsNullOrWhiteSpace(password))
                     {
-                        MessageBox.Show("Для нового користувача пароль обов'язковий!", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show("Для нового користувача пароль обов'язковий!", "Помилка");
                         return;
                     }
-                    _adminService.CreateUser(_user, password, _adminId);
+                    _adminService.CreateUser(userDto, password, _adminId);
                     MessageBox.Show("Користувача створено!", "Успіх");
                 }
 
@@ -139,7 +125,7 @@ namespace Requests.UI.ViewModels
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Помилка: {ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Помилка: {ex.Message}", "Помилка валидації", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

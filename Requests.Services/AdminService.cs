@@ -34,96 +34,203 @@ namespace Requests.Services
             _categoryRepository = categoryRepository;
         }
 
+        // === ВАЛІДАЦІЯ БЕЗПЕКИ СТРУКТУРИ ===
+        private void ValidateHierarchyForDeactivation(User user)
+        {
+            // Якщо користувач не є керівником/заступником/директором - пропускаємо
+            if (user.Position.Name != ServiceConstants.PositionHead &&
+                user.Position.Name != ServiceConstants.PositionDeputyHead &&
+                user.Position.Name != ServiceConstants.PositionDirector &&
+                user.Position.Name != ServiceConstants.PositionDeputyDirector)
+            {
+                return;
+            }
+
+            // 1. Логіка для Директора
+            if (user.Position.Name == ServiceConstants.PositionDirector)
+            {
+                bool hasBackup = _userRepository.Find(u =>
+                    u.Id != user.Id &&
+                    u.IsActive &&
+                    (u.Position.Name == ServiceConstants.PositionDirector || u.Position.Name == ServiceConstants.PositionDeputyDirector)
+                ).Any();
+
+                if (!hasBackup)
+                    throw new InvalidOperationException("Неможливо деактивувати єдиного активного Директора (немає заступників).");
+            }
+
+            // 2. Логіка для Керівника відділу або Заступника
+            if (user.Position.Name == ServiceConstants.PositionHead || user.Position.Name == ServiceConstants.PositionDeputyHead)
+            {
+                // Шукаємо, чи залишиться у цьому відділі хоча б один активний бос (Head або Deputy)
+                bool hasBackup = _userRepository.Find(u =>
+                    u.DepartmentId == user.DepartmentId &&
+                    u.Id != user.Id &&
+                    u.IsActive &&
+                    (u.Position.Name == ServiceConstants.PositionHead || u.Position.Name == ServiceConstants.PositionDeputyHead)
+                ).Any();
+
+                if (!hasBackup)
+                {
+                    throw new InvalidOperationException(
+                        $"Неможливо деактивувати користувача '{user.FullName}'.\n" +
+                        $"Він є останнім активним керівником у відділі '{user.Department.Name}'.\n" +
+                        "Спочатку призначте або активуйте іншого керівника/заступника.");
+                }
+            }
+        }
+
+        // === КОРИСТУВАЧІ ===
+        public IEnumerable<User> GetAllUsers() => _userRepository.GetAll();
+
         public void CreateUser(User user, string rawPassword, int adminId)
         {
             if (_userRepository.GetByUsername(user.Username) != null)
-                throw new InvalidOperationException("Цей логін вже зайнятий.");
+                throw new InvalidOperationException($"Логін '{user.Username}' вже зайнятий.");
+
+            if (!string.IsNullOrWhiteSpace(user.Email) && _userRepository.Find(u => u.Email == user.Email).Any())
+                throw new InvalidOperationException($"Email '{user.Email}' вже використовується.");
+
+            // При створенні перевіряємо, чи є куди додавати (якщо це співробітник)
+            var position = _positionRepository.GetById(user.PositionId);
+            if (position != null && position.Name == ServiceConstants.PositionEmployee)
+            {
+                var bosses = _userRepository.Find(u =>
+                    u.DepartmentId == user.DepartmentId &&
+                    u.IsActive &&
+                    (u.Position.Name == ServiceConstants.PositionHead || u.Position.Name == ServiceConstants.PositionDeputyHead));
+
+                if (!bosses.Any())
+                    throw new InvalidOperationException("У відділі повинен бути активний Керівник або Заступник.");
+            }
 
             user.PasswordHash = AuthService.ComputeHash(rawPassword);
-            _userRepository.Add(user);
+            user.IsActive = true;
 
-            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Created User {user.Username}" });
+            _userRepository.Add(user);
+            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Created User: {user.Username}" });
         }
 
-        public void EditUser(User updatedUser, int adminId)
+        public void UpdateUser(User userToUpdate, int adminId)
         {
-            var existingUser = _userRepository.GetById(updatedUser.Id);
-            if (existingUser == null) throw new InvalidOperationException("Користувача не знайдено.");
+            var existingUser = _userRepository.GetById(userToUpdate.Id);
+            if (existingUser == null) throw new Exception("Користувача не знайдено");
 
-            existingUser.FullName = updatedUser.FullName;
-            existingUser.Email = updatedUser.Email;
-            existingUser.DepartmentId = updatedUser.DepartmentId;
-            existingUser.PositionId = updatedUser.PositionId;
+            // Валідація Email
+            if (!string.IsNullOrWhiteSpace(userToUpdate.Email) && userToUpdate.Email != existingUser.Email)
+            {
+                if (_userRepository.Find(u => u.Email == userToUpdate.Email && u.Id != userToUpdate.Id).Any())
+                    throw new InvalidOperationException($"Email '{userToUpdate.Email}' вже зайнятий.");
+            }
+
+            // Якщо ми змінюємо відділ або посаду керівнику - це те саме, що деактивація його на старій посаді
+            // Тому треба перевірити, чи не "осиротіє" старий відділ.
+            // (Для спрощення тут поки не додаємо глибоку перевірку при Update, але варто врахувати в майбутньому)
+
+            existingUser.FullName = userToUpdate.FullName;
+            existingUser.Email = userToUpdate.Email;
+            existingUser.DepartmentId = userToUpdate.DepartmentId;
+            existingUser.PositionId = userToUpdate.PositionId;
+            existingUser.IsSystemAdmin = userToUpdate.IsSystemAdmin;
+
+            // Якщо змінюється активність через редагування - перевіряємо
+            if (existingUser.IsActive && !userToUpdate.IsActive)
+            {
+                ValidateHierarchyForDeactivation(existingUser);
+            }
+            existingUser.IsActive = userToUpdate.IsActive;
 
             _userRepository.Update(existingUser);
-            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Edited User {existingUser.Username}" });
+            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Updated User: {existingUser.Username}" });
         }
 
+        // === ЗМІНА АКТИВНОСТІ (ВІДПУСТКА) ===
         public void ToggleUserActivity(int userId, bool isActive, int adminId)
         {
             var user = _userRepository.GetById(userId);
-            if (user == null) return;
+            if (user != null)
+            {
+                // Якщо намагаємося вимкнути (isActive = false) - запускаємо перевірку
+                if (!isActive)
+                {
+                    ValidateHierarchyForDeactivation(user);
+                }
 
-            user.IsActive = isActive;
-            _userRepository.Update(user);
-            string action = isActive ? "Activated" : "Deactivated";
-            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"{action} User {user.Username}" });
+                user.IsActive = isActive;
+                _userRepository.Update(user);
+                _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"{(isActive ? "Activated" : "Deactivated")} User: {user.Username}" });
+            }
         }
 
-        public void ForceChangePassword(int userId, string newPassword, int adminId)
+        public void DeleteUser(int userId, int adminId)
         {
             var user = _userRepository.GetById(userId);
-            if (user == null) return;
+            if (user != null)
+            {
+                // Видалення рівноцінне деактивації
+                ValidateHierarchyForDeactivation(user);
 
-            user.PasswordHash = AuthService.ComputeHash(newPassword);
-            _userRepository.Update(user);
-
-            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Force reset password for user {user.Username}" });
+                _userRepository.Delete(userId);
+                _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Deleted User: {user.Username}" });
+            }
         }
 
-        public IEnumerable<User> GetAllUsers() => _userRepository.GetAll();
+        public void ForceChangePassword(int userId, string newPassword, int adminId) { var u = _userRepository.GetById(userId); if (u != null) { u.PasswordHash = AuthService.ComputeHash(newPassword); _userRepository.Update(u); } }
 
-        public void CreateDepartment(string name, int adminId)
+
+        // === ВІДДІЛИ (DEPARTMENTS) ===
+        public IEnumerable<Department> GetAllDepartments() => _departmentRepository.GetAll();
+
+        public void AddDepartment(string name, int adminId)
         {
-            if (_departmentRepository.Find(d => d.Name == name).Any())
-                throw new InvalidOperationException("Такий відділ вже існує!");
-
+            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Назва обов'язкова");
             _departmentRepository.Add(new Department { Name = name });
-            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Created Department: {name}" });
+            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Created Dept: {name}" });
         }
 
-        public void UpdateDepartment(Department department, int adminId)
+        public void EditDepartment(int id, string name, int adminId)
         {
-            _departmentRepository.Update(department);
-            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Updated Department: {department.Name}" });
+            var dept = _departmentRepository.GetById(id);
+            if (dept != null)
+            {
+                dept.Name = name;
+                _departmentRepository.Update(dept);
+                _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Updated Dept: {name}" });
+            }
         }
 
         public void DeleteDepartment(int id, int adminId)
         {
-            if (_userRepository.GetByDepartment(id).Any())
-                throw new InvalidOperationException("Не можна видалити відділ, у якому працюють люди! Спочатку переведіть їх.");
+            if (_userRepository.Find(u => u.DepartmentId == id).Any())
+                throw new InvalidOperationException("Не можна видалити відділ, у якому працюють люди!");
 
             var dept = _departmentRepository.GetById(id);
             if (dept != null)
             {
                 _departmentRepository.Delete(id);
-                _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Deleted Department: {dept.Name}" });
+                _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Deleted Dept: {dept.Name}" });
             }
         }
 
-        public void CreatePosition(string name, int adminId)
-        {
-            if (_positionRepository.Find(p => p.Name == name).Any())
-                throw new InvalidOperationException("Така посада вже існує!");
+        // === ПОСАДИ (POSITIONS) ===
+        public IEnumerable<Position> GetAllPositions() => _positionRepository.GetAll();
 
+        public void AddPosition(string name, int adminId)
+        {
+            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Назва обов'язкова");
             _positionRepository.Add(new Position { Name = name });
             _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Created Position: {name}" });
         }
 
-        public void UpdatePosition(Position position, int adminId)
+        public void EditPosition(int id, string name, int adminId)
         {
-            _positionRepository.Update(position);
-            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Updated Position: {position.Name}" });
+            var pos = _positionRepository.GetById(id);
+            if (pos != null)
+            {
+                pos.Name = name;
+                _positionRepository.Update(pos);
+                _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Updated Position: {name}" });
+            }
         }
 
         public void DeletePosition(int id, int adminId)
@@ -139,12 +246,46 @@ namespace Requests.Services
             }
         }
 
-        public IEnumerable<Department> GetAllDepartments() => _departmentRepository.GetAll();
-        public IEnumerable<Position> GetAllPositions() => _positionRepository.GetAll();
+        // === КАТЕГОРІЇ (CATEGORIES) ===
+        public IEnumerable<RequestCategory> GetAllCategories() => _categoryRepository.GetAll();
 
+        public void AddCategory(string name, int adminId)
+        {
+            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Назва обов'язкова");
+            if (_categoryRepository.Find(c => c.Name.ToLower() == name.ToLower()).Any())
+                throw new InvalidOperationException("Така категорія вже існує");
+
+            _categoryRepository.Add(new RequestCategory { Name = name });
+            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Created Category: {name}" });
+        }
+
+        public void EditCategory(int id, string name, int adminId)
+        {
+            var cat = _categoryRepository.GetById(id);
+            if (cat != null)
+            {
+                cat.Name = name;
+                _categoryRepository.Update(cat);
+                _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Updated Category: {name}" });
+            }
+        }
+
+        public void DeleteCategory(int id, int adminId)
+        {
+            // Увага: БД викине помилку, якщо категорія використовується (Restrict)
+            // Обробка цього має бути у ViewModel або через try-catch тут
+            var cat = _categoryRepository.GetById(id);
+            if (cat != null)
+            {
+                _categoryRepository.Delete(id);
+                _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Deleted Category: {cat.Name}" });
+            }
+        }
+
+        // === ІНШЕ ===
         public void BackupDatabase(string folderPath, int adminId)
         {
-            var dbName = "RequestsDB";
+            var dbName = "RequestsSystemDb";
             var fileName = $"Backup_{DateTime.Now:yyyyMMdd_HHmm}.bak";
             var fullPath = System.IO.Path.Combine(folderPath, fileName);
             _context.Database.ExecuteSqlRaw($"BACKUP DATABASE [{dbName}] TO DISK = '{fullPath}'");
@@ -152,32 +293,5 @@ namespace Requests.Services
         }
 
         public IEnumerable<AuditLog> GetSystemLogs() => _auditRepository.GetAll().OrderByDescending(l => l.Timestamp);
-
-        // === РОБОТА З КАТЕГОРІЯМИ (НОВЕ) ===
-        public IEnumerable<RequestCategory> GetAllCategories() => _categoryRepository.GetAll();
-
-        public void AddCategory(string name, int adminId)
-        {
-            if (_categoryRepository.Find(c => c.Name == name).Any())
-                throw new Exception("Категорія з такою назвою вже існує.");
-
-            _categoryRepository.Add(new RequestCategory { Name = name });
-            _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Created Category: {name}" });
-        }
-
-        public void DeleteCategory(int id, int adminId)
-        {
-            // Перевірка, чи використовується категорія в запитах
-            // Тут потрібен доступ до requests, або перевірка через БД (якщо foreign key restrict - то вилетить помилка)
-            try
-            {
-                _categoryRepository.Delete(id);
-                _auditRepository.Add(new AuditLog { UserId = adminId, Action = $"Deleted Category ID: {id}" });
-            }
-            catch (Exception)
-            {
-                throw new Exception("Не можна видалити категорію, яка використовується в активних запитах.");
-            }
-        }
     }
 }

@@ -13,7 +13,7 @@ namespace Requests.Data
             context.Database.EnsureCreated();
 
             // 1. Відділи
-            var departments = new[] { "Адміністрація", "IT Відділ", "Бухгалтерія", "HR Відділ", "Юридичний відділ", "АГВ" };
+            var departments = new[] { "Адміністрація", "IT Відділ", "Бухгалтерія", "HR Відділ", "Юридичний відділ"};
             foreach (var depName in departments)
             {
                 if (!context.Departments.Any(d => d.Name == depName))
