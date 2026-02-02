@@ -12,38 +12,36 @@ namespace Requests.Repositories.Implementations
         {
         }
 
-        // Тепер приймає статуси "Скасовано" і "Відхилено" як параметри
-        public IEnumerable<DepartmentTask> GetTasksByExecutor(int userId, string statusCanceled, string statusRejected)
+        public IEnumerable<DepartmentTask> GetTasksByExecutor(int userId)
         {
             return _dbSet
+                .AsNoTracking()
                 .Include(t => t.Request)
                     .ThenInclude(r => r.Priority)
                 .Include(t => t.Request)
                     .ThenInclude(r => r.Author)
                 .Include(t => t.Department)
                 .Include(t => t.Status)
+                .Include(t => t.Request.GlobalStatus) // Важливо підвантажити статус запиту
                 .Where(t => t.Executors.Any(e => e.UserId == userId))
-                // Використовуємо параметри
-                .Where(t => t.Request.GlobalStatus.Name != statusCanceled &&
-                            t.Request.GlobalStatus.Name != statusRejected)
                 .OrderByDescending(t => t.AssignedAt)
                 .ToList();
         }
 
-        // Тепер приймає всі необхідні статуси для фільтрації
         public IEnumerable<DepartmentTask> GetIncomingTasks(int departmentId, string taskStatusDone, string globalStatusPending, string statusCanceled, string statusRejected)
         {
             return _dbSet
+                .AsNoTracking() // <--- ВАЖЛИВО: Ігноруємо кеш, беремо свіже з БД
                 .Include(t => t.Request)
                     .ThenInclude(r => r.Author)
                 .Include(t => t.Request)
                     .ThenInclude(r => r.Priority)
                 .Include(t => t.Status)
+                .Include(t => t.Request.GlobalStatus) // Важливо!
                 .Where(t =>
                     t.DepartmentId == departmentId &&
                     t.Status.Name != taskStatusDone &&
                     t.Request.GlobalStatus.Name != globalStatusPending &&
-                    // Використовуємо параметри
                     t.Request.GlobalStatus.Name != statusCanceled &&
                     t.Request.GlobalStatus.Name != statusRejected
                 )

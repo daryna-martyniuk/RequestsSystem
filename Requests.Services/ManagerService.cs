@@ -15,6 +15,7 @@ namespace Requests.Services
         private readonly IRepository<RequestStatus> _statusRepository;
         private readonly IRepository<AuditLog> _auditRepository;
         private readonly UserRepository _userRepository;
+        private readonly IRepository<RequestComment> _commentRepository;
 
         public ManagerService(
             RequestRepository requestRepository,
@@ -22,7 +23,8 @@ namespace Requests.Services
             IRepository<TaskExecutor> executorRepository,
             IRepository<RequestStatus> statusRepository,
             IRepository<AuditLog> auditRepository,
-            UserRepository userRepository)
+            UserRepository userRepository,
+            IRepository<RequestComment> commentRepository)
         {
             _requestRepository = requestRepository;
             _taskRepository = taskRepository;
@@ -30,6 +32,7 @@ namespace Requests.Services
             _statusRepository = statusRepository;
             _auditRepository = auditRepository;
             _userRepository = userRepository;
+            _commentRepository = commentRepository;
         }
 
         public IEnumerable<Request> GetPendingApprovals(int managerDepartmentId)
@@ -37,20 +40,47 @@ namespace Requests.Services
             return _requestRepository.GetPendingApprovals(managerDepartmentId, ServiceConstants.StatusPendingApproval);
         }
 
-        public void ApproveRequest(int requestId, int managerId, Request editedValues)
+        // Отримання запитів "На уточненні"
+        public IEnumerable<Request> GetRequestsInDiscussion()
+        {
+            return _requestRepository.GetByGlobalStatus(ServiceConstants.StatusClarification);
+        }
+
+        // === ЗАВЕРШЕННЯ ОБГОВОРЕННЯ / ПОГОДЖЕННЯ ===
+        public void ApproveRequest(int requestId, int managerId, Request editedValues, string? newStatusName = null, string? conclusion = null)
         {
             var request = _requestRepository.GetById(requestId);
             if (request == null) throw new Exception("Запит не знайдено");
 
+            // 1. Зберігаємо зміни в самому запиті (назва, опис, пріоритет тощо)
+            request.Title = editedValues.Title;
+            request.Description = editedValues.Description;
             request.PriorityId = editedValues.PriorityId;
             request.CategoryId = editedValues.CategoryId;
             request.Deadline = editedValues.Deadline;
 
-            var statusNew = _statusRepository.Find(s => s.Name == ServiceConstants.StatusNew).First();
-            request.GlobalStatusId = statusNew.Id;
+            // 2. Змінюємо статус (виводимо з обговорення в "Новий" або інший)
+            string targetStatus = newStatusName ?? ServiceConstants.StatusNew;
+            var statusObj = _statusRepository.Find(s => s.Name == targetStatus).FirstOrDefault();
 
+            if (statusObj == null) throw new Exception($"Статус '{targetStatus}' не знайдено.");
+
+            request.GlobalStatusId = statusObj.Id;
             _requestRepository.Update(request);
-            _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = "Approved Request" });
+
+            // 3. Додаємо підсумок обговорення в коментарі
+            if (!string.IsNullOrWhiteSpace(conclusion))
+            {
+                _commentRepository.Add(new RequestComment
+                {
+                    RequestId = requestId,
+                    UserId = managerId,
+                    CommentText = $"[ПІДСУМОК ОБГОВОРЕННЯ]: {conclusion}",
+                    CreatedAt = DateTime.Now
+                });
+            }
+
+            _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = $"Discussion Finished -> {targetStatus}" });
         }
 
         public void RejectRequest(int requestId, int managerId, string reason)
@@ -63,72 +93,54 @@ namespace Requests.Services
             request.CompletedAt = DateTime.Now;
 
             _requestRepository.Update(request);
+
+            _commentRepository.Add(new RequestComment { RequestId = requestId, UserId = managerId, CommentText = $"[ВІДХИЛЕНО]: {reason}", CreatedAt = DateTime.Now });
             _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = $"Rejected: {reason}" });
         }
 
-        // === ВХІДНІ ЗАДАЧІ НА ВІДДІЛ ===
         public IEnumerable<DepartmentTask> GetIncomingTasks(int departmentId)
         {
-            return _taskRepository.GetIncomingTasks(
+            var tasks = _taskRepository.GetIncomingTasks(
                 departmentId,
                 ServiceConstants.TaskStatusDone,
                 ServiceConstants.StatusPendingApproval,
                 ServiceConstants.StatusCanceled,
-                ServiceConstants.StatusRejected
+                ServiceConstants.StatusRejected);
+
+            return tasks.Where(t =>
+                t.Status?.Name == ServiceConstants.TaskStatusNew &&
+                t.Request?.GlobalStatus?.Name != ServiceConstants.StatusClarification
             );
         }
 
-        // Призначити виконавця (існуючий метод)
         public void AssignExecutor(int departmentTaskId, int employeeId, int managerId)
         {
-            _executorRepository.Add(new TaskExecutor
-            {
-                DepartmentTaskId = departmentTaskId,
-                UserId = employeeId,
-                AssignedAt = DateTime.Now,
-                IsLead = true
-            });
-
+            _executorRepository.Add(new TaskExecutor { DepartmentTaskId = departmentTaskId, UserId = employeeId, AssignedAt = DateTime.Now, IsLead = true });
             var task = _taskRepository.GetById(departmentTaskId);
-            if (task != null)
+            var inProgress = _statusRepository.Find(s => s.Name == ServiceConstants.TaskStatusInProgress).FirstOrDefault();
+            task!.StatusId = inProgress!.Id;
+            _taskRepository.Update(task);
+            if (task.Request != null && task.Request.GlobalStatus.Name == ServiceConstants.StatusNew)
             {
-                var inProgress = _statusRepository.Find(s => s.Name == ServiceConstants.TaskStatusInProgress).FirstOrDefault();
-                task.StatusId = inProgress!.Id;
-                _taskRepository.Update(task);
-
-                if (task.Request != null && task.Request.GlobalStatus.Name == ServiceConstants.StatusNew)
-                {
-                    var globalProgress = _statusRepository.Find(s => s.Name == ServiceConstants.StatusInProgress).FirstOrDefault();
-                    task.Request.GlobalStatusId = globalProgress!.Id;
-                    _requestRepository.Update(task.Request);
-                }
+                var globalProgress = _statusRepository.Find(s => s.Name == ServiceConstants.StatusInProgress).FirstOrDefault();
+                task.Request.GlobalStatusId = globalProgress!.Id;
+                _requestRepository.Update(task.Request);
             }
             _auditRepository.Add(new AuditLog { UserId = managerId, Action = $"Assigned User {employeeId} to Task {departmentTaskId}" });
         }
 
-        // === ПЕРЕСЛАТИ ІНШОМУ ВІДДІЛУ (НОВЕ) ===
         public void ForwardTask(int departmentTaskId, int newDepartmentId, int managerId)
         {
             var task = _taskRepository.GetById(departmentTaskId);
             if (task == null) throw new Exception("Task not found");
-
-            // Змінюємо відділ
             task.DepartmentId = newDepartmentId;
-
-            // Скидаємо статус задачі на "Новий" (щоб у новому відділі її побачили як нову)
             var statusNew = _statusRepository.Find(s => s.Name == ServiceConstants.TaskStatusNew).First();
             task.StatusId = statusNew.Id;
-
-            // Очищаємо виконавців (бо старі виконавці з нашого відділу вже не актуальні)
-            // (Тут треба бути обережним, якщо executors є. В ідеалі - видалити їх, або залишити як історію)
-            // Для простоти поки не видаляємо записи TaskExecutor, але вони будуть прив'язані до цієї задачі.
-
             _taskRepository.Update(task);
             _auditRepository.Add(new AuditLog { UserId = managerId, Action = $"Forwarded Task {departmentTaskId} to Dept {newDepartmentId}" });
         }
 
-        // === ВИСУНУТИ НА ОБГОВОРЕННЯ (НОВЕ) ===
-        public void SetRequestToDiscussion(int requestId, int managerId, string comment)
+        public void SetRequestToDiscussion(int requestId, int managerId, string reason)
         {
             var request = _requestRepository.GetById(requestId);
             if (request == null) return;
@@ -137,7 +149,16 @@ namespace Requests.Services
             request.GlobalStatusId = statusClarification.Id;
 
             _requestRepository.Update(request);
-            _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = $"Set to Discussion: {comment}" });
+
+            _commentRepository.Add(new RequestComment
+            {
+                RequestId = requestId,
+                UserId = managerId,
+                CommentText = $"[ВИНЕСЕНО НА ОБГОВОРЕННЯ]: {reason}",
+                CreatedAt = DateTime.Now
+            });
+
+            _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = "Discussion started" });
         }
 
         public IEnumerable<User> GetMyEmployees(int departmentId) => _userRepository.GetByDepartment(departmentId);

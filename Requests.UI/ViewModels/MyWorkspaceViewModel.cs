@@ -3,7 +3,7 @@ using Requests.Services;
 using Requests.UI.Views;
 using System;
 using System.Collections.ObjectModel;
-using System.Linq; // Додано для Where()
+using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 
@@ -17,13 +17,12 @@ namespace Requests.UI.ViewModels
 
         // Колекції
         public ObservableCollection<Request> MyRequests { get; set; }
-
-        // РОЗДІЛЕННЯ ЗАВДАНЬ
-        public ObservableCollection<DepartmentTask> MyActiveTasks { get; set; } // Нові, В роботі, На паузі
-        public ObservableCollection<DepartmentTask> MyCompletedTasks { get; set; } // Виконані
+        public ObservableCollection<DepartmentTask> MyActiveTasks { get; set; }
+        public ObservableCollection<DepartmentTask> MyCompletedTasks { get; set; }
 
         public ObservableCollection<Request> PendingApprovals { get; set; }
         public ObservableCollection<DepartmentTask> IncomingDepartmentTasks { get; set; }
+        public ObservableCollection<Request> RequestsInDiscussion { get; set; } // Колекція для обговорень
 
         public bool IsManager =>
             _currentUser.Position.Name == ServiceConstants.PositionHead ||
@@ -46,7 +45,9 @@ namespace Requests.UI.ViewModels
         public ICommand DiscussTaskCommand { get; }
         public ICommand CompleteTaskCommand { get; }
         public ICommand PauseTaskCommand { get; }
-        public ICommand ResumeTaskCommand { get; } // НОВА
+        public ICommand ResumeTaskCommand { get; }
+        public ICommand DiscussRequestCommand { get; }
+        public ICommand FinishDiscussionCommand { get; }
 
         public MyWorkspaceViewModel(User user, EmployeeService service)
         {
@@ -55,13 +56,11 @@ namespace Requests.UI.ViewModels
             _managerService = App.CreateManagerService();
 
             MyRequests = new ObservableCollection<Request>();
-
-            // Ініціалізація нових колекцій
             MyActiveTasks = new ObservableCollection<DepartmentTask>();
             MyCompletedTasks = new ObservableCollection<DepartmentTask>();
-
             PendingApprovals = new ObservableCollection<Request>();
             IncomingDepartmentTasks = new ObservableCollection<DepartmentTask>();
+            RequestsInDiscussion = new ObservableCollection<Request>();
 
             CreateRequestCommand = new RelayCommand(CreateRequest);
             RefreshCommand = new RelayCommand(o => LoadData());
@@ -76,35 +75,27 @@ namespace Requests.UI.ViewModels
             DiscussTaskCommand = new RelayCommand(DiscussTask);
             CompleteTaskCommand = new RelayCommand(CompleteTask);
             PauseTaskCommand = new RelayCommand(PauseTask);
-            ResumeTaskCommand = new RelayCommand(ResumeTask); // Ініціалізація
+            ResumeTaskCommand = new RelayCommand(ResumeTask);
+            DiscussRequestCommand = new RelayCommand(DiscussRequest);
+            FinishDiscussionCommand = new RelayCommand(FinishDiscussion);
 
             LoadData();
         }
 
         private void LoadData()
         {
-            // 1. Мої запити
             MyRequests.Clear();
             foreach (var r in _employeeService.GetMyRequests(_currentUser.Id)) MyRequests.Add(r);
 
-            // 2. Мої завдання (Розділення)
             MyActiveTasks.Clear();
             MyCompletedTasks.Clear();
-
             var allTasks = _employeeService.GetMyTasks(_currentUser.Id);
             foreach (var t in allTasks)
             {
-                if (t.Status.Name == ServiceConstants.TaskStatusDone)
-                {
-                    MyCompletedTasks.Add(t);
-                }
-                else
-                {
-                    MyActiveTasks.Add(t);
-                }
+                if (t.Status.Name == ServiceConstants.TaskStatusDone) MyCompletedTasks.Add(t);
+                else MyActiveTasks.Add(t);
             }
 
-            // 3. Секція керівника
             if (IsManager)
             {
                 PendingApprovals.Clear();
@@ -112,92 +103,95 @@ namespace Requests.UI.ViewModels
 
                 IncomingDepartmentTasks.Clear();
                 foreach (var t in _managerService.GetIncomingTasks(_currentUser.DepartmentId)) IncomingDepartmentTasks.Add(t);
+
+                // Заповнюємо список "На обговоренні"
+                RequestsInDiscussion.Clear();
+                foreach (var d in _managerService.GetRequestsInDiscussion()) RequestsInDiscussion.Add(d);
             }
         }
 
-        // === УПРАВЛІННЯ СТАТУСОМ ЗАВДАННЯ ===
+        // === ЛОГІКА ЗАВЕРШЕННЯ ОБГОВОРЕННЯ ===
+        private void FinishDiscussion(object obj)
+        {
+            if (obj is Request req)
+            {
+                // 1. Відкриваємо вікно редагування (з повними даними)
+                var fullReq = _employeeService.GetRequestDetails(req.Id);
+                if (fullReq == null) return;
 
+                var editWindow = new CreateRequestWindow(_currentUser, _employeeService, fullReq);
+
+                // Якщо користувач натиснув "Зберегти" у вікні редагування
+                if (editWindow.ShowDialog() == true)
+                {
+                    // 2. Просимо написати підсумок
+                    var commentDialog = new EditNameWindow("");
+                    commentDialog.Title = "Підсумок обговорення (обов'язково)";
+
+                    if (commentDialog.ShowDialog() == true)
+                    {
+                        try
+                        {
+                            // Отримуємо оновлений запит (бо CreateRequestWindow вже зберіг зміни в БД)
+                            var updatedReq = _employeeService.GetRequestDetails(req.Id);
+
+                            // 3. Завершуємо: статус -> "Новий", додаємо коментар
+                            _managerService.ApproveRequest(req.Id, _currentUser.Id, updatedReq, ServiceConstants.StatusNew, commentDialog.ResultName);
+
+                            MessageBox.Show("Обговорення завершено! Запит повернуто в роботу.");
+                            LoadData();
+                        }
+                        catch (Exception ex) { MessageBox.Show("Помилка: " + ex.Message); }
+                    }
+                }
+            }
+        }
+
+        private void DiscussRequest(object obj)
+        {
+            if (obj is Request req)
+            {
+                var dialog = new EditNameWindow(""); dialog.Title = "Причина уточнення";
+                if (dialog.ShowDialog() == true)
+                {
+                    _managerService.SetRequestToDiscussion(req.Id, _currentUser.Id, dialog.ResultName);
+                    MessageBox.Show("Запит винесено на обговорення.");
+                    LoadData();
+                }
+            }
+        }
+
+        // ... Інші методи (CompleteTask, PauseTask і т.д.) ...
         private void CompleteTask(object obj)
         {
-            if (obj is DepartmentTask task)
+            if (obj is DepartmentTask task && MessageBox.Show("Виконано?", "Підтвердження", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
             {
-                if (MessageBox.Show("Позначити завдання як виконане?", "Підтвердження", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
-                {
-                    try
-                    {
-                        _employeeService.UpdateTaskStatus(task.Id, _currentUser.Id, ServiceConstants.TaskStatusDone);
-                        MessageBox.Show("Чудова робота! Завдання виконано.");
-                        LoadData();
-                    }
-                    catch (Exception ex) { MessageBox.Show("Помилка: " + ex.Message); }
-                }
+                _employeeService.UpdateTaskStatus(task.Id, _currentUser.Id, ServiceConstants.TaskStatusDone);
+                LoadData();
             }
         }
-
-        private void PauseTask(object obj)
-        {
-            if (obj is DepartmentTask task)
-            {
-                try
-                {
-                    _employeeService.PauseTask(task.Id, _currentUser.Id);
-                    MessageBox.Show("Завдання поставлено на паузу.");
-                    LoadData();
-                }
-                catch (Exception ex) { MessageBox.Show("Помилка: " + ex.Message); }
-            }
-        }
-
-        private void ResumeTask(object obj)
-        {
-            if (obj is DepartmentTask task)
-            {
-                try
-                {
-                    _employeeService.ResumeTask(task.Id, _currentUser.Id);
-                    MessageBox.Show("Завдання відновлено (В роботі).");
-                    LoadData();
-                }
-                catch (Exception ex) { MessageBox.Show("Помилка: " + ex.Message); }
-            }
-        }
+        private void PauseTask(object obj) { if (obj is DepartmentTask task) { _employeeService.PauseTask(task.Id, _currentUser.Id); LoadData(); } }
+        private void ResumeTask(object obj) { if (obj is DepartmentTask task) { _employeeService.ResumeTask(task.Id, _currentUser.Id); LoadData(); } }
 
         private void OpenDetails(object obj)
         {
-            Request reqToOpen = null;
-
-            if (obj is Request req)
+            Request r = obj as Request ?? (obj as DepartmentTask)?.Request;
+            if (r != null)
             {
-                reqToOpen = req;
-            }
-            else if (obj is DepartmentTask task)
-            {
-                reqToOpen = task.Request;
-            }
-
-            if (reqToOpen != null)
-            {
-                var fullRequest = _employeeService.GetRequestDetails(reqToOpen.Id);
-                if (fullRequest != null)
-                {
-                    var detailsWindow = new RequestDetailsWindow(fullRequest, _currentUser, _employeeService);
-                    detailsWindow.ShowDialog();
-                    LoadData();
-                }
+                var full = _employeeService.GetRequestDetails(r.Id);
+                if (full != null) { new RequestDetailsWindow(full, _currentUser, _employeeService).ShowDialog(); LoadData(); }
             }
         }
 
-        // ... (Інші методи AssignExecutor, ForwardTask, Approve, Reject... без змін)
         private void AssignExecutor(object obj)
         {
             if (obj is DepartmentTask task)
             {
-                var employees = _managerService.GetMyEmployees(_currentUser.DepartmentId);
-                var dialog = new SelectUserWindow(employees);
-                if (dialog.ShowDialog() == true)
+                var emp = _managerService.GetMyEmployees(_currentUser.DepartmentId);
+                var dlg = new SelectUserWindow(emp);
+                if (dlg.ShowDialog() == true)
                 {
-                    try { _managerService.AssignExecutor(task.Id, dialog.SelectedUser.Id, _currentUser.Id); MessageBox.Show("Виконавця призначено!"); LoadData(); }
-                    catch (Exception ex) { MessageBox.Show(ex.Message); }
+                    _managerService.AssignExecutor(task.Id, dlg.SelectedUser.Id, _currentUser.Id); LoadData();
                 }
             }
         }
@@ -206,16 +200,11 @@ namespace Requests.UI.ViewModels
         {
             if (obj is DepartmentTask task)
             {
-                var dialog = new SelectDepartmentWindow();
-                if (dialog.ShowDialog() == true)
+                var dlg = new SelectDepartmentWindow();
+                if (dlg.ShowDialog() == true)
                 {
-                    try
-                    {
-                        if (dialog.SelectedDepartment.Id == _currentUser.DepartmentId) { MessageBox.Show("Не можна на свій відділ!"); return; }
-                        _managerService.ForwardTask(task.Id, dialog.SelectedDepartment.Id, _currentUser.Id);
-                        MessageBox.Show("Задачу переслано."); LoadData();
-                    }
-                    catch (Exception ex) { MessageBox.Show(ex.Message); }
+                    if (dlg.SelectedDepartment.Id == _currentUser.DepartmentId) { MessageBox.Show("Помилка"); return; }
+                    _managerService.ForwardTask(task.Id, dlg.SelectedDepartment.Id, _currentUser.Id); LoadData();
                 }
             }
         }
@@ -224,15 +213,13 @@ namespace Requests.UI.ViewModels
         {
             if (obj is DepartmentTask task)
             {
-                var dialog = new EditNameWindow(""); dialog.Title = "Коментар";
-                if (dialog.ShowDialog() == true)
+                var dlg = new EditNameWindow(""); dlg.Title = "Коментар";
+                if (dlg.ShowDialog() == true)
                 {
-                    _managerService.SetRequestToDiscussion(task.RequestId, _currentUser.Id, dialog.ResultName);
-                    MessageBox.Show("Повернуто на обговорення."); LoadData();
+                    _managerService.SetRequestToDiscussion(task.RequestId, _currentUser.Id, dlg.ResultName); LoadData();
                 }
             }
         }
-
         private void Approve(object obj)
         {
             if (obj is Request req)
@@ -254,6 +241,7 @@ namespace Requests.UI.ViewModels
         }
 
         private void CreateRequest(object obj) { new CreateRequestWindow(_currentUser, _employeeService).ShowDialog(); LoadData(); }
+
         private void EditRequest(object obj)
         {
             if (obj is Request req)
@@ -262,11 +250,13 @@ namespace Requests.UI.ViewModels
                 if (full != null) { new CreateRequestWindow(_currentUser, _employeeService, full).ShowDialog(); LoadData(); }
             }
         }
+
         private void DeleteRequest(object obj)
         {
             if (obj is Request req && MessageBox.Show("Видалити?", "Увага", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
             { _employeeService.DeleteRequest(req.Id, _currentUser.Id); LoadData(); }
         }
+
         private void CancelRequest(object obj)
         {
             if (obj is Request req && MessageBox.Show("Скасувати?", "Увага", MessageBoxButton.YesNo) == MessageBoxResult.Yes)

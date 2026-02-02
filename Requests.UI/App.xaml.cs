@@ -27,7 +27,6 @@ namespace Requests.UI
 
         // === ФАБРИКИ СЕРВІСІВ ===
 
-        // Виправлено: передаємо всі необхідні репозиторії
         public static AdminService CreateAdminService()
         {
             var context = new AppDbContext();
@@ -38,7 +37,7 @@ namespace Requests.UI
                 new Repository<AuditLog>(context),
                 new Repository<Department>(context),
                 new Repository<Position>(context),
-                new Repository<RequestCategory>(context) // Додано аргумент
+                new Repository<RequestCategory>(context)
             );
         }
 
@@ -67,13 +66,16 @@ namespace Requests.UI
         public static ManagerService CreateManagerService()
         {
             var context = CreateContext();
+
+            // Оновлена ініціалізація з CommentRepository
             return new ManagerService(
                 new RequestRepository(context),
                 new DepartmentTaskRepository(context),
                 new Repository<TaskExecutor>(context),
                 new Repository<RequestStatus>(context),
                 new Repository<AuditLog>(context),
-                new UserRepository(context)
+                new UserRepository(context),
+                new Repository<RequestComment>(context) // Додано
             );
         }
 
@@ -89,7 +91,6 @@ namespace Requests.UI
             );
         }
 
-        // Виправлено: додано UserRepository у конструктор
         public static ReportService CreateReportService()
         {
             var context = CreateContext();
@@ -97,7 +98,7 @@ namespace Requests.UI
                 new RequestRepository(context),
                 new DepartmentTaskRepository(context),
                 new Repository<AuditLog>(context),
-                new UserRepository(context) // Додано аргумент
+                new UserRepository(context)
             );
         }
     }

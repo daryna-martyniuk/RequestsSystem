@@ -38,9 +38,7 @@ namespace Requests.Services
         public IEnumerable<DepartmentTask> GetMyTasks(int userId)
         {
             return _taskRepository.GetTasksByExecutor(
-                userId,
-                ServiceConstants.StatusCanceled,
-                ServiceConstants.StatusRejected
+                userId
             );
         }
 
