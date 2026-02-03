@@ -75,7 +75,7 @@ namespace Requests.UI
                 new Repository<RequestStatus>(context),
                 new Repository<AuditLog>(context),
                 new UserRepository(context),
-                new Repository<RequestComment>(context) // Додано
+                new Repository<RequestComment>(context)
             );
         }
 
@@ -94,11 +94,13 @@ namespace Requests.UI
         public static ReportService CreateReportService()
         {
             var context = CreateContext();
+            // Added Repository<Department> to match constructor
             return new ReportService(
                 new RequestRepository(context),
                 new DepartmentTaskRepository(context),
                 new Repository<AuditLog>(context),
-                new UserRepository(context)
+                new UserRepository(context),
+                new Repository<Department>(context)
             );
         }
     }

@@ -35,54 +35,35 @@ namespace Requests.Services
             _commentRepository = commentRepository;
         }
 
-        // === БАЗОВІ ОПЕРАЦІЇ ===
         public IEnumerable<Request> GetPendingApprovals(int managerDeptId)
             => _requestRepository.GetPendingApprovals(managerDeptId, ServiceConstants.StatusPendingApproval);
 
         public IEnumerable<Request> GetRequestsInDiscussion(int managerDeptId)
             => _requestRepository.GetPendingApprovals(managerDeptId, ServiceConstants.StatusClarification);
 
+        // ВИПРАВЛЕНО: Використовуємо метод з Include, щоб завантажити Request і Author
         public IEnumerable<DepartmentTask> GetIncomingTasks(int departmentId)
-            => _taskRepository.Find(t => t.DepartmentId == departmentId && t.Status.Name == ServiceConstants.TaskStatusNew);
-
-        // === ДІЇ З ЗАПИТАМИ ===
-
-        public void ApproveRequest(int requestId, int managerId, Request editedValues, string? newStatusName = null, string? conclusion = null)
         {
-            var request = _requestRepository.GetById(requestId);
-            if (request == null) throw new Exception("Запит не знайдено");
-
-            // 1. Зберігаємо зміни в самому запиті (назва, опис, пріоритет тощо)
-            request.Title = editedValues.Title;
-            request.Description = editedValues.Description;
-            request.PriorityId = editedValues.PriorityId;
-            request.CategoryId = editedValues.CategoryId;
-            request.Deadline = editedValues.Deadline;
-
-            // 2. Змінюємо статус (виводимо з обговорення в "Новий" або інший)
-            string targetStatus = newStatusName ?? ServiceConstants.StatusNew;
-            var statusObj = _statusRepository.Find(s => s.Name == targetStatus).FirstOrDefault();
-
-            if (statusObj == null) throw new Exception($"Статус '{targetStatus}' не знайдено.");
-
-            request.GlobalStatusId = statusObj.Id;
-            _requestRepository.Update(request);
-
-            // 3. Додаємо підсумок обговорення в коментарі
-            if (!string.IsNullOrWhiteSpace(conclusion))
-            {
-                _commentRepository.Add(new RequestComment
-                {
-                    RequestId = requestId,
-                    UserId = managerId,
-                    CommentText = $"[ПІДСУМОК ОБГОВОРЕННЯ]: {conclusion}",
-                    CreatedAt = DateTime.Now
-                });
-            }
-
-            _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = $"Discussion Finished -> {targetStatus}" });
+            // Беремо всі задачі за весь час для відділу (вони вже з Include у репозиторії)
+            // і фільтруємо лише нові
+            var allTasks = _taskRepository.GetTasksForReport(departmentId, DateTime.MinValue, DateTime.MaxValue);
+            return allTasks.Where(t => t.Status.Name == ServiceConstants.TaskStatusNew);
         }
 
+        public void ApproveRequest(int requestId, int managerId, Request requestToUpdate)
+        {
+            var request = _requestRepository.GetById(requestId);
+            if (request == null) return;
+
+            request.PriorityId = requestToUpdate.PriorityId;
+            request.Deadline = requestToUpdate.Deadline;
+
+            var statusInProgress = _statusRepository.Find(s => s.Name == ServiceConstants.StatusInProgress).First();
+            request.GlobalStatusId = statusInProgress.Id;
+
+            _requestRepository.Update(request);
+            _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = "Approved Request" });
+        }
 
         public void RejectRequest(int requestId, int managerId, string reason)
         {
@@ -109,8 +90,6 @@ namespace Requests.Services
             _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = "Sent to Discussion" });
         }
 
-        // === ДІЇ З ЗАДАЧАМИ ===
-
         public void AssignExecutor(int departmentTaskId, int executorId, int managerId)
         {
             var task = _taskRepository.GetById(departmentTaskId);
@@ -121,7 +100,6 @@ namespace Requests.Services
             task.AssignedAt = DateTime.Now;
             _taskRepository.Update(task);
 
-            // Додаємо виконавця
             _executorRepository.Add(new TaskExecutor
             {
                 DepartmentTaskId = departmentTaskId,
@@ -138,12 +116,9 @@ namespace Requests.Services
             var task = _taskRepository.GetById(departmentTaskId);
             if (task == null) return;
 
-            // Змінюємо відділ задачі
             task.DepartmentId = newDepartmentId;
-            // Скидаємо статус на Новий
             var statusNew = _statusRepository.Find(s => s.Name == ServiceConstants.TaskStatusNew).First();
             task.StatusId = statusNew.Id;
-            // Очищаємо виконавців
             task.Executors.Clear();
 
             _taskRepository.Update(task);
@@ -178,7 +153,6 @@ namespace Requests.Services
         public IEnumerable<User> GetMyEmployees(int departmentId) => _userRepository.GetByDepartment(departmentId);
         public IEnumerable<DepartmentTask> GetAllTasksForDepartment(int departmentId) => _taskRepository.GetAllTasksByDepartment(departmentId);
 
-        // Added missing method
         public IEnumerable<DepartmentTask> GetAllTasksForEmployee(int employeeId)
         {
             return _taskRepository.GetAllTasksByExecutor(employeeId);

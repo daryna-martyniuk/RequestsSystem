@@ -158,6 +158,7 @@ namespace Requests.UI.ViewModels
 
         private void LoadData()
         {
+            // Дані співробітника
             MyRequests.Clear();
             foreach (var r in _employeeService.GetMyRequests(_currentUser.Id)) MyRequests.Add(r);
 
@@ -170,6 +171,7 @@ namespace Requests.UI.ViewModels
                 else MyActiveTasks.Add(t);
             }
 
+            // Дані керівника
             if (IsManager)
             {
                 PendingApprovals.Clear();
@@ -211,8 +213,9 @@ namespace Requests.UI.ViewModels
             // 1. Пошук
             if (!string.IsNullOrWhiteSpace(SearchText))
             {
-                bool match = req.Title.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                             req.Author.FullName.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+                var txt = SearchText.ToLower();
+                bool match = req.Title.ToLower().Contains(txt) ||
+                             req.Author.FullName.ToLower().Contains(txt);
                 if (!match) return false;
             }
             // 2. Дати
@@ -222,21 +225,30 @@ namespace Requests.UI.ViewModels
             return true;
         }
 
-        // Фільтр для Завдань (DepartmentTask)
+        // Фільтр для Завдань (DepartmentTask) - ВИПРАВЛЕНО
         private bool FilterTasksCommon(object obj)
         {
             if (obj is not DepartmentTask task) return false;
 
-            // 1. Пошук
+            // 1. Пошук (з безпечною перевіркою на null)
             if (!string.IsNullOrWhiteSpace(SearchText))
             {
-                bool match = task.Request.Title.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                             task.Request.Author.FullName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                             (task.Executors.FirstOrDefault()?.User.FullName ?? "").Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+                var txt = SearchText.ToLower();
+
+                // Використовуємо ?. для перевірки на null
+                string title = task.Request?.Title ?? "";
+                string author = task.Request?.Author?.FullName ?? "";
+                string executor = task.Executors.FirstOrDefault()?.User?.FullName ?? "";
+
+                bool match = title.ToLower().Contains(txt) ||
+                             author.ToLower().Contains(txt) ||
+                             executor.ToLower().Contains(txt);
+
                 if (!match) return false;
             }
+
             // 2. Статус (Фільтр по комбобоксу)
-            if (FilterStatus != "Всі" && task.Status.Name != FilterStatus) return false;
+            if (FilterStatus != "Всі" && task.Status?.Name != FilterStatus) return false;
 
             // 3. Дати
             if (FilterStartDate.HasValue && task.AssignedAt?.Date < FilterStartDate.Value.Date) return false;
@@ -265,11 +277,11 @@ namespace Requests.UI.ViewModels
                         reportData.Add(new[]
                         {
                             t.RequestId.ToString(),
-                            t.Request.Title,
+                            t.Request?.Title ?? "Без назви", // Безпечний доступ
                             executor,
-                            t.Status.Name,
+                            t.Status?.Name ?? "Невідомо",
                             t.AssignedAt?.ToString("dd.MM.yyyy") ?? "-",
-                            t.Request.Deadline?.ToString("dd.MM.yyyy") ?? "-"
+                            t.Request?.Deadline?.ToString("dd.MM.yyyy") ?? "-"
                         });
                     }
 
@@ -280,8 +292,7 @@ namespace Requests.UI.ViewModels
             }
         }
 
-        // ... [Усі інші методи (OpenDetails, Approve, DiscussTask і т.д.)] ...
-        // Копіюємо з попереднього разу, щоб не втратити функціонал
+        // ... [Інші методи без змін] ...
         private void FinishDiscussion(object obj)
         {
             if (obj is Request req)
@@ -298,7 +309,7 @@ namespace Requests.UI.ViewModels
                         try
                         {
                             var updatedReq = _employeeService.GetRequestDetails(req.Id);
-                            _managerService.ApproveRequest(req.Id, _currentUser.Id, updatedReq, ServiceConstants.StatusNew, commentDialog.ResultName);
+                            _managerService.ApproveRequest(req.Id, _currentUser.Id, updatedReq); // Виправлено виклик
                             MessageBox.Show("Обговорення завершено.");
                             LoadData();
                         }

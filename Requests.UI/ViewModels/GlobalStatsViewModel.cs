@@ -172,7 +172,8 @@ namespace Requests.UI.ViewModels
 
         private void GenerateReport(object obj)
         {
-            var dialog = new SaveFileDialog { Filter = "PDF Report|*.pdf", FileName = $"Director_Report_{DateTime.Now:yyyyMMdd}" };
+            // DOCX/PDF
+            var dialog = new SaveFileDialog { Filter = "PDF Report|*.pdf|Word Document|*.docx", FileName = $"Director_Report_{DateTime.Now:yyyyMMdd}" };
             if (dialog.ShowDialog() == true)
             {
                 try
@@ -180,10 +181,16 @@ namespace Requests.UI.ViewModels
                     var start = FilterStartDate ?? DateTime.Now.AddDays(-30);
                     var end = FilterEndDate ?? DateTime.Now;
 
-                    var data = _reportService.GetDirectorReportData(start, end);
-                    var tableData = data.AllRequests.Select(r => new[] { r.Id.ToString(), r.Title, r.GlobalStatus.Name });
+                    // Отримуємо відфільтровані запити з View
+                    var filteredRequests = GlobalRequestsView.Cast<Request>();
 
-                    _reportService.GeneratePdfReport(dialog.FileName, $"Звіт Директора ({start:dd.MM}-{end:dd.MM})", tableData);
+                    var data = _reportService.GetDirectorReportData(filteredRequests, start, end);
+
+                    if (dialog.FilterIndex == 1)
+                        _reportService.GenerateDirectorPdf(dialog.FileName, data);
+                    else
+                        _reportService.GenerateDirectorDocx(dialog.FileName, data);
+
                     MessageBox.Show("Звіт збережено успішно!");
                 }
                 catch (Exception ex)

@@ -175,16 +175,25 @@ namespace Requests.UI.ViewModels
 
         private void GenerateReport(object obj)
         {
-            var dialog = new SaveFileDialog { Filter = "PDF Report|*.pdf", FileName = $"DeptReport_{DateTime.Now:yyyyMMdd}" };
+            // ДОДАНО: Формат DOCX у фільтр
+            var dialog = new SaveFileDialog { Filter = "PDF Report|*.pdf|Word Document|*.docx", FileName = $"DeptReport_{DateTime.Now:yyyyMMdd}" };
             if (dialog.ShowDialog() == true)
             {
                 var start = FilterStartDate ?? DateTime.Now.AddMonths(-1);
                 var end = FilterEndDate ?? DateTime.Now;
 
                 var data = _reportService.GetManagerReportData(_currentUser.DepartmentId, start, end);
-                var pdfData = data.Tasks.Select(t => new[] { t.Request.Title, t.Status.Name, t.AssignedAt?.ToString("d") ?? "-" });
 
-                _reportService.GeneratePdfReport(dialog.FileName, $"Звіт відділу: {_currentUser.Department.Name}", pdfData);
+                // Вибір методу залежно від розширення
+                if (dialog.FilterIndex == 1) // PDF
+                {
+                    _reportService.GenerateManagerPdf(dialog.FileName, data);
+                }
+                else // DOCX
+                {
+                    _reportService.GenerateManagerDocx(dialog.FileName, data);
+                }
+
                 MessageBox.Show("Звіт збережено!");
             }
         }

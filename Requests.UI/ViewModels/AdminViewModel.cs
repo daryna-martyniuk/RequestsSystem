@@ -397,15 +397,19 @@ namespace Requests.UI.ViewModels
         // === ЗВІТИ ТА БЕКАП ===
         private void GenerateReport(object obj)
         {
-            var dialog = new SaveFileDialog { Filter = "PDF Report|*.pdf", FileName = $"System_Log_{DateTime.Now:yyyyMMdd}" };
+            var dialog = new SaveFileDialog { Filter = "PDF Report|*.pdf|Word Document|*.docx", FileName = $"System_Log_{DateTime.Now:yyyyMMdd}" };
             if (dialog.ShowDialog() == true)
             {
                 try
                 {
-                    var logs = _reportService.GetAdminLogs(DateTime.Now.AddDays(-30), DateTime.Now);
-                    var data = new System.Collections.Generic.List<string[]> { new[] { "Time", "User", "Action" } };
-                    foreach (var l in logs) data.Add(new[] { l.Timestamp.ToString(), l.User?.Username ?? "-", l.Action });
-                    _reportService.GeneratePdfReport(dialog.FileName, "System Report", data);
+                    // Збираємо дані за 30 днів
+                    var data = _reportService.GetAdminReportData(_currentUser.FullName, DateTime.Now.AddDays(-30), DateTime.Now);
+
+                    if (dialog.FilterIndex == 1)
+                        _reportService.GenerateAdminPdf(dialog.FileName, data);
+                    else
+                        _reportService.GenerateAdminDocx(dialog.FileName, data);
+
                     MessageBox.Show("Звіт створено!");
                 }
                 catch (Exception ex) { MessageBox.Show(ex.Message); }
