@@ -92,6 +92,7 @@ namespace Requests.UI.ViewModels
         public ICommand OpenDetailsCommand { get; }
         public ICommand RefreshCommand { get; }
         public ICommand GenerateReportCommand { get; }
+        public ICommand ClearFiltersCommand { get; }
 
         public GlobalStatsViewModel(DirectorService directorService, ReportService reportService, EmployeeService employeeService, User currentUser)
         {
@@ -104,6 +105,9 @@ namespace Requests.UI.ViewModels
             OpenDetailsCommand = new RelayCommand(OpenDetails);
             RefreshCommand = new RelayCommand(o => LoadGlobalData());
             GenerateReportCommand = new RelayCommand(GenerateReport);
+
+            ClearFiltersCommand = new RelayCommand(o => { SearchText = ""; FilterStartDate = null; FilterEndDate = null; SelectedStatusFilter = "Всі"; });
+
 
             LoadGlobalData();
         }

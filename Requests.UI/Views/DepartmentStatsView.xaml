@@ -5,6 +5,14 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              mc:Ignorable="d" 
              d:DesignHeight="700" d:DesignWidth="1100">
+    <UserControl.Resources>
+        <!-- Стиль для широких вкладок (як у MyWorkspaceView) -->
+        <Style TargetType="TabItem" BasedOn="{StaticResource ModernTabItemStyle}">
+            <Setter Property="MinWidth" Value="220"/>
+            <Setter Property="Padding" Value="15,10"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Resources>
 
     <Grid Margin="20">
         <Grid.ColumnDefinitions>
@@ -21,7 +29,6 @@
                 </Grid.RowDefinitions>
                 <TextBlock Text="Моя Команда" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" Foreground="{StaticResource TextPrimary}"/>
 
-                <!-- При виборі співробітника SelectedEmployee у VM оновлюється, що перемикає видимість -->
                 <ListBox Grid.Row="1" ItemsSource="{Binding Employees}" SelectedItem="{Binding SelectedEmployee}" BorderThickness="0">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
@@ -82,42 +89,70 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- ПАНЕЛЬ ФІЛЬТРІВ -->
-                <Border Grid.Row="1" Background="White" CornerRadius="5" Padding="10" Margin="0,0,0,15" Effect="{StaticResource CardShadow}">
-                    <WrapPanel Orientation="Horizontal">
-                        <StackPanel Margin="0,0,15,0">
-                            <TextBlock Text="Період з:" FontSize="12" Foreground="{StaticResource TextSecondary}"/>
-                            <DatePicker SelectedDate="{Binding FilterStartDate}" Width="120" Height="30"/>
-                        </StackPanel>
-                        <StackPanel Margin="0,0,15,0">
-                            <TextBlock Text="по:" FontSize="12" Foreground="{StaticResource TextSecondary}"/>
-                            <DatePicker SelectedDate="{Binding FilterEndDate}" Width="120" Height="30"/>
-                        </StackPanel>
-                        <StackPanel Margin="0,0,15,0">
-                            <TextBlock Text="Статус:" FontSize="12" Foreground="{StaticResource TextSecondary}"/>
-                            <ComboBox ItemsSource="{Binding FilterStatuses}" SelectedItem="{Binding SelectedStatusFilter}" Width="120" Height="30"/>
-                        </StackPanel>
-                        <StackPanel Margin="0,0,15,0">
-                            <TextBlock Text="Пошук:" FontSize="12" Foreground="{StaticResource TextSecondary}"/>
-                            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Width="150" Height="30" Style="{StaticResource ModernTextBox}"/>
+                <!-- ПАНЕЛЬ ФІЛЬТРІВ (Вирівняно рівномірно) -->
+                <Border Grid.Row="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,15" Effect="{StaticResource CardShadow}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <!-- Період з -->
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                            <!-- Період по -->
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                            <!-- Статус -->
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="1.5*"/>
+                            <!-- Пошук (трохи ширше) -->
+                            <ColumnDefinition Width="5"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <!-- Кнопка очищення -->
+                            <ColumnDefinition Width="15"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <!-- Кнопка звіту -->
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Період з:" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,5"/>
+                            <DatePicker SelectedDate="{Binding FilterStartDate}" Height="35" HorizontalAlignment="Stretch"/>
                         </StackPanel>
 
-                        <Button Content="📊 Звіт Відділу" Command="{Binding GenerateReportCommand}" 
-                                Style="{StaticResource ActionBtnStyle}" VerticalAlignment="Bottom" Height="30"/>
-                    </WrapPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="по:" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,5"/>
+                            <DatePicker SelectedDate="{Binding FilterEndDate}" Height="35" HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="4">
+                            <TextBlock Text="Статус:" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,5"/>
+                            <ComboBox ItemsSource="{Binding FilterStatuses}" SelectedItem="{Binding SelectedStatusFilter}" Height="35" HorizontalAlignment="Stretch" Padding="5"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="6">
+                            <TextBlock Text="Пошук:" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,5"/>
+                            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Height="35" Style="{StaticResource ModernTextBox}"/>
+                        </StackPanel>
+
+                        <!-- Кнопка очищення фільтрів -->
+                        <Button Grid.Column="8" Content="✕" Command="{Binding ClearFiltersCommand}" 
+                                Style="{StaticResource NavButtonStyle}" ToolTip="Скинути фільтри" 
+                                VerticalAlignment="Bottom" Height="35" Margin="0,0,0,0"/>
+
+                        <Button Grid.Column="10" Content="📊 Звіт Відділу" Command="{Binding GenerateReportCommand}" 
+                                Style="{StaticResource ActionBtnStyle}" Height="35" VerticalAlignment="Bottom"/>
+                    </Grid>
                 </Border>
 
                 <!-- Вкладки: Завдання та Запити відділу -->
                 <TabControl Grid.Row="2">
-                    <TabItem Header="Всі Завдання">
+                    <TabItem Header="Всі завдання">
                         <Border Background="White" CornerRadius="10" Effect="{StaticResource CardShadow}" Padding="10" Margin="0,10,0,0">
                             <DataGrid ItemsSource="{Binding DepartmentTasksView}" AutoGenerateColumns="False" IsReadOnly="True">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50"/>
+                                    <!-- ID видалено, як ви просили -->
                                     <DataGridTextColumn Header="Запит" Binding="{Binding Request.Title}" Width="*"/>
                                     <DataGridTextColumn Header="Статус" Binding="{Binding Status.Name}" Width="120"/>
                                     <DataGridTextColumn Header="Дата" Binding="{Binding AssignedAt, StringFormat=dd.MM.yyyy}" Width="100"/>
-                                    <DataGridTextColumn Header="Виконавець" Binding="{Binding Executors[0].User.FullName, TargetNullValue='-'}" Width="120"/>
+                                    <DataGridTextColumn Header="Виконавець" Binding="{Binding Executors[0].User.FullName, TargetNullValue='-'}" Width="150"/>
 
                                     <DataGridTemplateColumn Header="Дії" Width="140">
                                         <DataGridTemplateColumn.CellTemplate>
@@ -136,7 +171,7 @@
                         </Border>
                     </TabItem>
 
-                    <!-- Тут можна додати вкладку "Всі запити відділу", якщо потрібно, аналогічно -->
+                    <!-- Тут можна додати вкладку "Всі запити відділу", якщо потрібно -->
                 </TabControl>
             </Grid>
 
@@ -156,7 +191,6 @@
                     <TabItem Header="Завдання">
                         <DataGrid ItemsSource="{Binding SelectedEmployeeTasks}" AutoGenerateColumns="False" IsReadOnly="True" Margin="0,10,0,0">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50"/>
                                 <DataGridTextColumn Header="Запит" Binding="{Binding Request.Title}" Width="*"/>
                                 <DataGridTextColumn Header="Статус" Binding="{Binding Status.Name}" Width="120"/>
                                 <DataGridTemplateColumn Header="Дії" Width="50">
@@ -172,10 +206,9 @@
                     <TabItem Header="Створені Запити">
                         <DataGrid ItemsSource="{Binding SelectedEmployeeRequests}" AutoGenerateColumns="False" IsReadOnly="True" Margin="0,10,0,0">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50"/>
                                 <DataGridTextColumn Header="Тема" Binding="{Binding Title}" Width="*"/>
                                 <DataGridTextColumn Header="Статус" Binding="{Binding GlobalStatus.Name}" Width="120"/>
-                                <DataGridTemplateColumn Header="Дії" Width="50">
+                                <DataGridTemplateColumn Header="Дії" Width="60">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <Button Content="👁" Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource ActionIconBtnStyle}" Background="{StaticResource TextSecondary}"/>

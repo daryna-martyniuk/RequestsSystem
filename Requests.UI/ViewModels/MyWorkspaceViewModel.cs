@@ -35,9 +35,14 @@ namespace Requests.UI.ViewModels
         public ObservableCollection<DepartmentTask> AllDepartmentTasks { get; set; }
 
         // === VIEWS ДЛЯ ФІЛЬТРАЦІЇ ===
+        public ICollectionView MyRequestsView { get; private set; }
+        public ICollectionView MyActiveTasksView { get; private set; }
+        public ICollectionView MyCompletedTasksView { get; private set; }
+
         public ICollectionView PendingApprovalsView { get; private set; }
         public ICollectionView IncomingTasksView { get; private set; }
-        public ICollectionView AllDepartmentTasksView { get; private set; } // Для аналітики
+        public ICollectionView DiscussionView { get; private set; }
+        public ICollectionView AllDepartmentTasksView { get; private set; }
 
         // === ФІЛЬТРИ ===
         private string _searchText;
@@ -70,7 +75,10 @@ namespace Requests.UI.ViewModels
 
         public ObservableCollection<string> StatusOptions { get; } = new ObservableCollection<string>
         {
-            "Всі", "Новий", "В роботі", "На паузі", "Виконано", "Очікує погодження", "На уточненні"
+            "Всі",
+            "Новий", "Очікує погодження", "На уточненні", "В роботі",
+            "Відхилено", "Скасовано", "Завершено",
+            "На паузі", "Виконано"
         };
 
         // === СТАТИСТИКА ===
@@ -113,7 +121,7 @@ namespace Requests.UI.ViewModels
             _managerService = App.CreateManagerService();
             _reportService = App.CreateReportService();
 
-            // Ініціалізація
+            // Ініціалізація колекцій
             MyRequests = new ObservableCollection<Request>();
             MyActiveTasks = new ObservableCollection<DepartmentTask>();
             MyCompletedTasks = new ObservableCollection<DepartmentTask>();
@@ -122,15 +130,32 @@ namespace Requests.UI.ViewModels
             RequestsInDiscussion = new ObservableCollection<Request>();
             AllDepartmentTasks = new ObservableCollection<DepartmentTask>();
 
-            // Налаштування Views
+            // === НАЛАШТУВАННЯ VIEWS (ФІЛЬТРАЦІЯ) ===
+
+            // 1. Мої запити
+            MyRequestsView = CollectionViewSource.GetDefaultView(MyRequests);
+            MyRequestsView.Filter = FilterRequestsCommon;
+
+            // 2. Мої активні завдання
+            MyActiveTasksView = CollectionViewSource.GetDefaultView(MyActiveTasks);
+            MyActiveTasksView.Filter = FilterTasksCommon;
+
+            // 3. Мої виконані завдання
+            MyCompletedTasksView = CollectionViewSource.GetDefaultView(MyCompletedTasks);
+            MyCompletedTasksView.Filter = FilterTasksCommon;
+
+            // 4. Списки Керівника
             PendingApprovalsView = CollectionViewSource.GetDefaultView(PendingApprovals);
             PendingApprovalsView.Filter = FilterRequestsCommon;
 
             IncomingTasksView = CollectionViewSource.GetDefaultView(IncomingDepartmentTasks);
             IncomingTasksView.Filter = FilterTasksCommon;
 
+            DiscussionView = CollectionViewSource.GetDefaultView(RequestsInDiscussion);
+            DiscussionView.Filter = FilterRequestsCommon;
+
             AllDepartmentTasksView = CollectionViewSource.GetDefaultView(AllDepartmentTasks);
-            AllDepartmentTasksView.Filter = FilterTasksCommon; // Використовуємо той самий фільтр
+            AllDepartmentTasksView.Filter = FilterTasksCommon;
 
             // Команди
             CreateRequestCommand = new RelayCommand(CreateRequest);
@@ -200,12 +225,18 @@ namespace Requests.UI.ViewModels
         // === ФІЛЬТРАЦІЯ ===
         private void ApplyFilters()
         {
+            // Оновлюємо ВСІ View, щоб фільтр застосувався до поточної активної вкладки
+            MyRequestsView.Refresh();
+            MyActiveTasksView.Refresh();
+            MyCompletedTasksView.Refresh();
+
             PendingApprovalsView.Refresh();
             IncomingTasksView.Refresh();
+            DiscussionView.Refresh();
             AllDepartmentTasksView.Refresh();
         }
 
-        // Фільтр для Запитів (Request)
+        // Фільтр для Запитів (Request) - ВИПРАВЛЕНО З Null Checks та додано Фільтр Статусу
         private bool FilterRequestsCommon(object obj)
         {
             if (obj is not Request req) return false;
@@ -214,18 +245,26 @@ namespace Requests.UI.ViewModels
             if (!string.IsNullOrWhiteSpace(SearchText))
             {
                 var txt = SearchText.ToLower();
-                bool match = req.Title.ToLower().Contains(txt) ||
-                             req.Author.FullName.ToLower().Contains(txt);
+                // Використовуємо перевірку на null (?.) та оператор об'єднання з null (?? "")
+                string title = req.Title ?? "";
+                string author = req.Author?.FullName ?? "";
+
+                bool match = title.ToLower().Contains(txt) ||
+                             author.ToLower().Contains(txt);
+
                 if (!match) return false;
             }
-            // 2. Дати
+            // 2. Статус (ДОДАНО)
+            if (FilterStatus != "Всі" && req.GlobalStatus?.Name != FilterStatus) return false;
+
+            // 3. Дати
             if (FilterStartDate.HasValue && req.CreatedAt.Date < FilterStartDate.Value.Date) return false;
             if (FilterEndDate.HasValue && req.CreatedAt.Date > FilterEndDate.Value.Date) return false;
 
             return true;
         }
 
-        // Фільтр для Завдань (DepartmentTask) - ВИПРАВЛЕНО
+        // Фільтр для Завдань (DepartmentTask) - ВИПРАВЛЕНО З Null Checks
         private bool FilterTasksCommon(object obj)
         {
             if (obj is not DepartmentTask task) return false;
@@ -235,10 +274,10 @@ namespace Requests.UI.ViewModels
             {
                 var txt = SearchText.ToLower();
 
-                // Використовуємо ?. для перевірки на null
                 string title = task.Request?.Title ?? "";
                 string author = task.Request?.Author?.FullName ?? "";
-                string executor = task.Executors.FirstOrDefault()?.User?.FullName ?? "";
+                // Перевірка, чи існує колекція Executors і чи є там хоча б один запис
+                string executor = task.Executors?.FirstOrDefault()?.User?.FullName ?? "";
 
                 bool match = title.ToLower().Contains(txt) ||
                              author.ToLower().Contains(txt) ||

@@ -90,6 +90,7 @@ namespace Requests.UI.ViewModels
         public ICommand PauseTaskCommand { get; }
         public ICommand ForwardTaskCommand { get; }
         public ICommand RefreshCommand { get; }
+        public ICommand ClearFiltersCommand { get; }
 
         public DepartmentStatsViewModel(ManagerService managerService, ReportService reportService, EmployeeService employeeService, User currentUser)
         {
@@ -108,6 +109,9 @@ namespace Requests.UI.ViewModels
             AssignExecutorCommand = new RelayCommand(AssignExecutor);
             PauseTaskCommand = new RelayCommand(PauseTask);
             ForwardTaskCommand = new RelayCommand(ForwardTask);
+
+            ClearFiltersCommand = new RelayCommand(o => { SearchText = ""; FilterStartDate = null; FilterEndDate = null; SelectedStatusFilter = "Всі"; });
+
 
             LoadData();
         }
