@@ -405,7 +405,7 @@ namespace Requests.UI.ViewModels
                     var logs = _reportService.GetAdminLogs(DateTime.Now.AddDays(-30), DateTime.Now);
                     var data = new System.Collections.Generic.List<string[]> { new[] { "Time", "User", "Action" } };
                     foreach (var l in logs) data.Add(new[] { l.Timestamp.ToString(), l.User?.Username ?? "-", l.Action });
-                    _reportService.ExportToPdf(dialog.FileName, "System Report", data);
+                    _reportService.GeneratePdfReport(dialog.FileName, "System Report", data);
                     MessageBox.Show("Звіт створено!");
                 }
                 catch (Exception ex) { MessageBox.Show(ex.Message); }

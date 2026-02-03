@@ -3,7 +3,6 @@ using Requests.Data.Models;
 using Requests.Services;
 using Requests.UI.Views;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -17,49 +16,69 @@ namespace Requests.UI.ViewModels
     {
         private readonly EmployeeService _employeeService;
         private readonly ManagerService _managerService;
+        private readonly ReportService _reportService;
         private readonly User _currentUser;
-        private readonly ReportService _reportService; // Для звітів
 
         // === КОЛЕКЦІЇ ===
         public ObservableCollection<Request> MyRequests { get; set; }
+
+        // Мої завдання
         public ObservableCollection<DepartmentTask> MyActiveTasks { get; set; }
         public ObservableCollection<DepartmentTask> MyCompletedTasks { get; set; }
 
-        // Для керівника
+        // Керівник: Оперативні списки
         public ObservableCollection<Request> PendingApprovals { get; set; }
         public ObservableCollection<DepartmentTask> IncomingDepartmentTasks { get; set; }
         public ObservableCollection<Request> RequestsInDiscussion { get; set; }
-        public ObservableCollection<User> MyEmployees { get; set; } // Підлеглі
+
+        // Керівник: Аналітика (Всі таски відділу)
+        public ObservableCollection<DepartmentTask> AllDepartmentTasks { get; set; }
 
         // === VIEWS ДЛЯ ФІЛЬТРАЦІЇ ===
-        public ICollectionView MyRequestsView { get; private set; }
-        public ICollectionView MyActiveTasksView { get; private set; }
+        public ICollectionView PendingApprovalsView { get; private set; }
         public ICollectionView IncomingTasksView { get; private set; }
-
-        // === АНАЛІТИКА (Лічильники) ===
-        private int _myActiveCount;
-        private int _myCompletedCount;
-        private int _deptActiveCount;
-        private int _deptCriticalCount;
-
-        public int MyActiveCount { get => _myActiveCount; set { _myActiveCount = value; OnPropertyChanged(); } }
-        public int MyCompletedCount { get => _myCompletedCount; set { _myCompletedCount = value; OnPropertyChanged(); } }
-        public int DeptActiveCount { get => _deptActiveCount; set { _deptActiveCount = value; OnPropertyChanged(); } }
-        public int DeptCriticalCount { get => _deptCriticalCount; set { _deptCriticalCount = value; OnPropertyChanged(); } }
+        public ICollectionView AllDepartmentTasksView { get; private set; } // Для аналітики
 
         // === ФІЛЬТРИ ===
         private string _searchText;
         public string SearchText
         {
             get => _searchText;
-            set
-            {
-                _searchText = value;
-                OnPropertyChanged();
-                ApplyFilters();
-            }
+            set { _searchText = value; OnPropertyChanged(); ApplyFilters(); }
         }
 
+        private DateTime? _filterStartDate;
+        public DateTime? FilterStartDate
+        {
+            get => _filterStartDate;
+            set { _filterStartDate = value; OnPropertyChanged(); ApplyFilters(); }
+        }
+
+        private DateTime? _filterEndDate;
+        public DateTime? FilterEndDate
+        {
+            get => _filterEndDate;
+            set { _filterEndDate = value; OnPropertyChanged(); ApplyFilters(); }
+        }
+
+        private string _filterStatus = "Всі";
+        public string FilterStatus
+        {
+            get => _filterStatus;
+            set { _filterStatus = value; OnPropertyChanged(); ApplyFilters(); }
+        }
+
+        public ObservableCollection<string> StatusOptions { get; } = new ObservableCollection<string>
+        {
+            "Всі", "Новий", "В роботі", "На паузі", "Виконано", "Очікує погодження", "На уточненні"
+        };
+
+        // === СТАТИСТИКА ===
+        public int ActiveTasksCount => AllDepartmentTasks.Count(t => t.Status.Name == ServiceConstants.TaskStatusInProgress || t.Status.Name == ServiceConstants.TaskStatusNew);
+        public int CompletedTasksCount => AllDepartmentTasks.Count(t => t.Status.Name == ServiceConstants.TaskStatusDone);
+        public int CriticalTasksCount => AllDepartmentTasks.Count(t => t.Request.Priority.Name == ServiceConstants.PriorityCritical && t.Status.Name != ServiceConstants.TaskStatusDone);
+
+        // Властивості
         public bool IsManager =>
             _currentUser.Position.Name == ServiceConstants.PositionHead ||
             _currentUser.Position.Name == ServiceConstants.PositionDirector ||
@@ -84,10 +103,8 @@ namespace Requests.UI.ViewModels
         public ICommand ResumeTaskCommand { get; }
         public ICommand DiscussRequestCommand { get; }
         public ICommand FinishDiscussionCommand { get; }
-
-        // Нові команди
+        public ICommand ClearFiltersCommand { get; }
         public ICommand GenerateReportCommand { get; }
-        public ICommand ViewEmployeeTasksCommand { get; }
 
         public MyWorkspaceViewModel(User user, EmployeeService service)
         {
@@ -96,26 +113,26 @@ namespace Requests.UI.ViewModels
             _managerService = App.CreateManagerService();
             _reportService = App.CreateReportService();
 
-            // Ініціалізація колекцій
+            // Ініціалізація
             MyRequests = new ObservableCollection<Request>();
             MyActiveTasks = new ObservableCollection<DepartmentTask>();
             MyCompletedTasks = new ObservableCollection<DepartmentTask>();
             PendingApprovals = new ObservableCollection<Request>();
             IncomingDepartmentTasks = new ObservableCollection<DepartmentTask>();
             RequestsInDiscussion = new ObservableCollection<Request>();
-            MyEmployees = new ObservableCollection<User>();
+            AllDepartmentTasks = new ObservableCollection<DepartmentTask>();
 
-            // Налаштування Views для фільтрації
-            MyRequestsView = CollectionViewSource.GetDefaultView(MyRequests);
-            MyRequestsView.Filter = FilterRequests;
-
-            MyActiveTasksView = CollectionViewSource.GetDefaultView(MyActiveTasks);
-            MyActiveTasksView.Filter = FilterTasks;
+            // Налаштування Views
+            PendingApprovalsView = CollectionViewSource.GetDefaultView(PendingApprovals);
+            PendingApprovalsView.Filter = FilterRequestsCommon;
 
             IncomingTasksView = CollectionViewSource.GetDefaultView(IncomingDepartmentTasks);
-            IncomingTasksView.Filter = FilterTasks;
+            IncomingTasksView.Filter = FilterTasksCommon;
 
-            // Ініціалізація команд
+            AllDepartmentTasksView = CollectionViewSource.GetDefaultView(AllDepartmentTasks);
+            AllDepartmentTasksView.Filter = FilterTasksCommon; // Використовуємо той самий фільтр
+
+            // Команди
             CreateRequestCommand = new RelayCommand(CreateRequest);
             RefreshCommand = new RelayCommand(o => LoadData());
             OpenDetailsCommand = new RelayCommand(OpenDetails);
@@ -133,143 +150,138 @@ namespace Requests.UI.ViewModels
             DiscussRequestCommand = new RelayCommand(DiscussRequest);
             FinishDiscussionCommand = new RelayCommand(FinishDiscussion);
 
+            ClearFiltersCommand = new RelayCommand(o => { SearchText = ""; FilterStartDate = null; FilterEndDate = null; FilterStatus = "Всі"; });
             GenerateReportCommand = new RelayCommand(GenerateReport);
-            ViewEmployeeTasksCommand = new RelayCommand(ViewEmployeeTasks);
 
             LoadData();
         }
 
         private void LoadData()
         {
-            // 1. Мої запити
             MyRequests.Clear();
             foreach (var r in _employeeService.GetMyRequests(_currentUser.Id)) MyRequests.Add(r);
 
-            // 2. Мої завдання (Розділення + Аналітика)
             MyActiveTasks.Clear();
             MyCompletedTasks.Clear();
-            var allTasks = _employeeService.GetMyTasks(_currentUser.Id);
-
-            foreach (var t in allTasks)
+            var allMyTasks = _employeeService.GetMyTasks(_currentUser.Id);
+            foreach (var t in allMyTasks)
             {
                 if (t.Status.Name == ServiceConstants.TaskStatusDone) MyCompletedTasks.Add(t);
                 else MyActiveTasks.Add(t);
             }
 
-            // Оновлення лічильників (Особисті)
-            MyActiveCount = MyActiveTasks.Count;
-            MyCompletedCount = MyCompletedTasks.Count;
-
-            // 3. Секція керівника
             if (IsManager)
             {
                 PendingApprovals.Clear();
                 foreach (var a in _managerService.GetPendingApprovals(_currentUser.DepartmentId)) PendingApprovals.Add(a);
 
                 IncomingDepartmentTasks.Clear();
-                var incoming = _managerService.GetIncomingTasks(_currentUser.DepartmentId);
-                foreach (var t in incoming) IncomingDepartmentTasks.Add(t);
+                foreach (var t in _managerService.GetIncomingTasks(_currentUser.DepartmentId)) IncomingDepartmentTasks.Add(t);
 
                 RequestsInDiscussion.Clear();
-                foreach (var d in _managerService.GetRequestsInDiscussion()) RequestsInDiscussion.Add(d);
+                foreach (var d in _managerService.GetRequestsInDiscussion(_currentUser.DepartmentId)) RequestsInDiscussion.Add(d);
 
-                // Завантаження команди
-                MyEmployees.Clear();
-                foreach (var emp in _managerService.GetMyEmployees(_currentUser.DepartmentId)) MyEmployees.Add(emp);
+                // АНАЛІТИКА: Всі таски відділу
+                AllDepartmentTasks.Clear();
+                var deptTasks = _managerService.GetAllTasksForDepartment(_currentUser.DepartmentId);
+                foreach (var t in deptTasks) AllDepartmentTasks.Add(t);
 
-                // Оновлення лічильників (Відділ)
-                DeptActiveCount = IncomingDepartmentTasks.Count; // Це тільки нові, можна додати логіку для "В роботі"
-                DeptCriticalCount = incoming.Count(t => t.Request.Priority.Name == ServiceConstants.PriorityCritical);
+                // Оновлення статистики
+                OnPropertyChanged(nameof(ActiveTasksCount));
+                OnPropertyChanged(nameof(CompletedTasksCount));
+                OnPropertyChanged(nameof(CriticalTasksCount));
             }
 
-            // Оновлення фільтрів
-            MyRequestsView.Refresh();
-            MyActiveTasksView.Refresh();
-            IncomingTasksView.Refresh();
+            ApplyFilters();
         }
 
-        // === ЛОГІКА ФІЛЬТРАЦІЇ ===
+        // === ФІЛЬТРАЦІЯ ===
         private void ApplyFilters()
         {
-            MyRequestsView.Refresh();
-            MyActiveTasksView.Refresh();
+            PendingApprovalsView.Refresh();
             IncomingTasksView.Refresh();
+            AllDepartmentTasksView.Refresh();
         }
 
-        private bool FilterRequests(object obj)
+        // Фільтр для Запитів (Request)
+        private bool FilterRequestsCommon(object obj)
         {
-            if (string.IsNullOrWhiteSpace(SearchText)) return true;
-            if (obj is Request req)
+            if (obj is not Request req) return false;
+
+            // 1. Пошук
+            if (!string.IsNullOrWhiteSpace(SearchText))
             {
-                return req.Title.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                       req.Category.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                       req.GlobalStatus.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+                bool match = req.Title.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                             req.Author.FullName.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+                if (!match) return false;
             }
-            return false;
+            // 2. Дати
+            if (FilterStartDate.HasValue && req.CreatedAt.Date < FilterStartDate.Value.Date) return false;
+            if (FilterEndDate.HasValue && req.CreatedAt.Date > FilterEndDate.Value.Date) return false;
+
+            return true;
         }
 
-        private bool FilterTasks(object obj)
+        // Фільтр для Завдань (DepartmentTask)
+        private bool FilterTasksCommon(object obj)
         {
-            if (string.IsNullOrWhiteSpace(SearchText)) return true;
-            if (obj is DepartmentTask task)
+            if (obj is not DepartmentTask task) return false;
+
+            // 1. Пошук
+            if (!string.IsNullOrWhiteSpace(SearchText))
             {
-                return task.Request.Title.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                       task.Request.Author.FullName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                       task.Request.Priority.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+                bool match = task.Request.Title.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                             task.Request.Author.FullName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                             (task.Executors.FirstOrDefault()?.User.FullName ?? "").Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+                if (!match) return false;
             }
-            return false;
+            // 2. Статус (Фільтр по комбобоксу)
+            if (FilterStatus != "Всі" && task.Status.Name != FilterStatus) return false;
+
+            // 3. Дати
+            if (FilterStartDate.HasValue && task.AssignedAt?.Date < FilterStartDate.Value.Date) return false;
+            if (FilterEndDate.HasValue && task.AssignedAt?.Date > FilterEndDate.Value.Date) return false;
+
+            return true;
         }
 
-        // === ЗВІТИ ТА КОМАНДА ===
-
+        // === ГЕНЕРАЦІЯ ЗВІТУ ===
         private void GenerateReport(object obj)
         {
-            // Простий приклад генерації PDF звіту за останні 30 днів
-            var dialog = new SaveFileDialog { Filter = "PDF Report|*.pdf", FileName = $"Report_{DateTime.Now:yyyyMMdd}" };
+            var dialog = new SaveFileDialog { Filter = "PDF Report|*.pdf", FileName = $"Report_{_currentUser.Department.Name}_{DateTime.Now:yyyyMMdd}" };
             if (dialog.ShowDialog() == true)
             {
                 try
                 {
-                    var data = _reportService.GetManagerReportData(_currentUser.DepartmentId, DateTime.Now.AddDays(-30), DateTime.Now);
+                    // Генеруємо звіт на основі поточних відфільтрованих даних у AllDepartmentTasksView
+                    var tasks = AllDepartmentTasksView.Cast<DepartmentTask>().ToList();
 
-                    var reportRows = new List<string[]>
-                    {
-                        new[] { "ID", "Тема", "Виконавець", "Статус", "Дата" }
-                    };
+                    var reportData = new System.Collections.Generic.List<string[]>();
+                    reportData.Add(new[] { "ID", "Тема", "Виконавець", "Статус", "Дата", "Дедлайн" });
 
-                    foreach (var t in data.Tasks)
+                    foreach (var t in tasks)
                     {
                         string executor = t.Executors.FirstOrDefault()?.User.FullName ?? "Не призначено";
-                        reportRows.Add(new[] { t.RequestId.ToString(), t.Request.Title, executor, t.Status.Name, t.AssignedAt?.ToString("dd.MM.yyyy") ?? "-" });
+                        reportData.Add(new[]
+                        {
+                            t.RequestId.ToString(),
+                            t.Request.Title,
+                            executor,
+                            t.Status.Name,
+                            t.AssignedAt?.ToString("dd.MM.yyyy") ?? "-",
+                            t.Request.Deadline?.ToString("dd.MM.yyyy") ?? "-"
+                        });
                     }
 
-                    _reportService.ExportToPdf(dialog.FileName, $"Звіт відділу: {_currentUser.Department.Name}", reportRows);
-                    MessageBox.Show("Звіт успішно збережено!");
+                    _reportService.GeneratePdfReport(dialog.FileName, $"Аналітика відділу: {_currentUser.Department.Name}", reportData);
+                    MessageBox.Show("Звіт збережено!");
                 }
-                catch (Exception ex) { MessageBox.Show("Помилка генерації звіту: " + ex.Message); }
+                catch (Exception ex) { MessageBox.Show("Помилка: " + ex.Message); }
             }
         }
 
-        private void ViewEmployeeTasks(object obj)
-        {
-            if (obj is User emp)
-            {
-                // Тут можна відкрити окреме вікно або відфільтрувати список
-                // Для простоти покажемо повідомлення з інформацією
-                var tasks = _employeeService.GetMyTasks(emp.Id);
-                int active = tasks.Count(t => t.Status.Name != ServiceConstants.TaskStatusDone);
-                int done = tasks.Count(t => t.Status.Name == ServiceConstants.TaskStatusDone);
-
-                MessageBox.Show($"Співробітник: {emp.FullName}\n" +
-                                $"Активних завдань: {active}\n" +
-                                $"Виконаних завдань: {done}",
-                                "Інформація про співробітника");
-            }
-        }
-
-        // ... [Усі інші методи: FinishDiscussion, DiscussRequest, CompleteTask, PauseTask, ResumeTask, OpenDetails, AssignExecutor, ForwardTask, DiscussTask, Approve, Reject, CreateRequest, EditRequest, DeleteRequest, CancelRequest] залишаються без змін, скопіюйте їх з попереднього файлу ...
-
-        // КОПІЯ МЕТОДІВ З ПОПЕРЕДНЬОЇ ВЕРСІЇ (Щоб файл був повним):
+        // ... [Усі інші методи (OpenDetails, Approve, DiscussTask і т.д.)] ...
+        // Копіюємо з попереднього разу, щоб не втратити функціонал
         private void FinishDiscussion(object obj)
         {
             if (obj is Request req)
@@ -295,7 +307,7 @@ namespace Requests.UI.ViewModels
                 }
             }
         }
-        private void DiscussRequest(object obj) { if (obj is Request r) { var d = new EditNameWindow(""); d.Title = "Причина"; if (d.ShowDialog() == true) { _managerService.SetRequestToDiscussion(r.Id, _currentUser.Id, d.ResultName); MessageBox.Show("На обговоренні"); LoadData(); } } }
+        private void DiscussRequest(object obj) { if (obj is Request r) { var d = new EditNameWindow(""); d.Title = "Причина"; if (d.ShowDialog() == true) { _managerService.SetRequestToDiscussion(r.Id, _currentUser.Id, d.ResultName); LoadData(); } } }
         private void CompleteTask(object obj) { if (obj is DepartmentTask t && MessageBox.Show("Виконано?", "Так", MessageBoxButton.YesNo) == MessageBoxResult.Yes) { _employeeService.UpdateTaskStatus(t.Id, _currentUser.Id, ServiceConstants.TaskStatusDone); LoadData(); } }
         private void PauseTask(object obj) { if (obj is DepartmentTask t) { _employeeService.PauseTask(t.Id, _currentUser.Id); LoadData(); } }
         private void ResumeTask(object obj) { if (obj is DepartmentTask t) { _employeeService.ResumeTask(t.Id, _currentUser.Id); LoadData(); } }

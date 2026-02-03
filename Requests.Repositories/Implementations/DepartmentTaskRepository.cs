@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Requests.Data;
 using Requests.Data.Models;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -22,8 +23,39 @@ namespace Requests.Repositories.Implementations
                     .ThenInclude(r => r.Author)
                 .Include(t => t.Department)
                 .Include(t => t.Status)
-                .Include(t => t.Request.GlobalStatus) // Важливо підвантажити статус запиту
+                .Include(t => t.Request.GlobalStatus)
                 .Where(t => t.Executors.Any(e => e.UserId == userId))
+                .Where(t => t.Request.GlobalStatus.Name != "Скасовано" && t.Request.GlobalStatus.Name != "Відхилено") // Старий фільтр
+                .OrderByDescending(t => t.AssignedAt)
+                .ToList();
+        }
+
+        // === НОВІ МЕТОДИ ДЛЯ СТАТИСТИКИ (БЕЗ ФІЛЬТРІВ) ===
+
+        public IEnumerable<DepartmentTask> GetAllTasksByExecutor(int userId)
+        {
+            return _dbSet
+                .AsNoTracking()
+                .Include(t => t.Request).ThenInclude(r => r.Priority)
+                .Include(t => t.Request).ThenInclude(r => r.Author)
+                .Include(t => t.Department)
+                .Include(t => t.Status)
+                .Include(t => t.Request.GlobalStatus)
+                .Where(t => t.Executors.Any(e => e.UserId == userId))
+                .OrderByDescending(t => t.AssignedAt)
+                .ToList();
+        }
+
+        public IEnumerable<DepartmentTask> GetAllTasksByDepartment(int departmentId)
+        {
+            return _dbSet
+                .AsNoTracking()
+                .Include(t => t.Request).ThenInclude(r => r.Priority)
+                .Include(t => t.Request).ThenInclude(r => r.Author)
+                .Include(t => t.Status)
+                .Include(t => t.Request.GlobalStatus)
+                .Include(t => t.Executors).ThenInclude(e => e.User)
+                .Where(t => t.DepartmentId == departmentId)
                 .OrderByDescending(t => t.AssignedAt)
                 .ToList();
         }
@@ -31,13 +63,11 @@ namespace Requests.Repositories.Implementations
         public IEnumerable<DepartmentTask> GetIncomingTasks(int departmentId, string taskStatusDone, string globalStatusPending, string statusCanceled, string statusRejected)
         {
             return _dbSet
-                .AsNoTracking() // <--- ВАЖЛИВО: Ігноруємо кеш, беремо свіже з БД
-                .Include(t => t.Request)
-                    .ThenInclude(r => r.Author)
-                .Include(t => t.Request)
-                    .ThenInclude(r => r.Priority)
+                .AsNoTracking()
+                .Include(t => t.Request).ThenInclude(r => r.Author)
+                .Include(t => t.Request).ThenInclude(r => r.Priority)
                 .Include(t => t.Status)
-                .Include(t => t.Request.GlobalStatus) // Важливо!
+                .Include(t => t.Request.GlobalStatus)
                 .Where(t =>
                     t.DepartmentId == departmentId &&
                     t.Status.Name != taskStatusDone &&
@@ -52,6 +82,20 @@ namespace Requests.Repositories.Implementations
         public IEnumerable<Request> GetPendingApprovals(int managerDepartmentId, string statusName)
         {
             return null;
+        }
+
+        public IEnumerable<DepartmentTask> GetTasksForReport(int departmentId, DateTime start, DateTime end)
+        {
+            return _dbSet
+                .AsNoTracking()
+                .Include(t => t.Status)
+                .Include(t => t.Request)
+                .Include(t => t.Executors).ThenInclude(e => e.User)
+                .Where(t =>
+                    t.DepartmentId == departmentId &&
+                    t.AssignedAt >= start &&
+                    t.AssignedAt <= end)
+                .ToList();
         }
     }
 }
