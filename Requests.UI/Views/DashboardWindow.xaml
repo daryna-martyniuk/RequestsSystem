@@ -9,18 +9,8 @@
         Title="Requests System" Height="800" Width="1200"
         WindowStartupLocation="CenterScreen" Background="{StaticResource BackgroundLight}">
 
-    <Window.Resources>
-        <DataTemplate DataType="{x:Type vm:MyWorkspaceViewModel}">
-            <views:MyWorkspaceView/>
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:AdminViewModel}">
-            <views:AdminView/>
-        </DataTemplate>
-        <!-- НОВИЙ ШАБЛОН -->
-        <DataTemplate DataType="{x:Type vm:DepartmentStatsViewModel}">
-            <views:DepartmentStatsView/>
-        </DataTemplate>
-    </Window.Resources>
+    <!-- Ресурси вже визначені в App.xaml, тому тут DataTemplate не обов'язкові, 
+         але для Design-Time підтримки їх можна залишити або прибрати, якщо App.xaml працює коректно -->
 
     <Grid>
         <Grid.RowDefinitions>
@@ -29,34 +19,40 @@
         </Grid.RowDefinitions>
 
         <!-- ХЕДЕР -->
-        <Border Grid.Row="0" Background="{StaticResource HeaderBackground}" Height="70" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1">
+        <Border Grid.Row="0" Background="{StaticResource HeaderBackground}" Padding="20,10" Effect="{StaticResource CardShadow}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
+                    <!-- Лого -->
                     <ColumnDefinition Width="*"/>
+                    <!-- Навігація -->
                     <ColumnDefinition Width="Auto"/>
+                    <!-- Профіль -->
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="30,0">
-                    <TextBlock Text="REQUESTS" Foreground="{StaticResource TextPrimary}" FontSize="22" FontWeight="Bold"/>
-                    <TextBlock Text=".SYS" Foreground="{StaticResource PrimaryBlue}" FontSize="22" FontWeight="Bold"/>
+                <!-- ЛОГО -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="{StaticResource PrimaryBlue}" CornerRadius="10" Width="40" Height="40" Margin="0,0,10,0">
+                        <TextBlock Text="R" Foreground="White" FontWeight="Bold" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="Requests" FontSize="20" FontWeight="Bold" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}"/>
                 </StackPanel>
 
-                <!-- МЕНЮ -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Button Content="Дашборд" Command="{Binding ShowWorkspaceCommand}" Style="{StaticResource NavButtonStyle}"/>
+                <!-- НАВІГАЦІЯ -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button Content="Мій простір" Command="{Binding ShowWorkspaceCommand}" Style="{StaticResource NavButtonStyle}"/>
 
-                    <!-- ДЛЯ КЕРІВНИКІВ -->
-                    <Button Content="Статистика відділу" Command="{Binding ShowDepartmentStatsCommand}" 
-                            Visibility="{Binding IsManagerVisible}" Style="{StaticResource NavButtonStyle}"/>
-
-                    <!-- ДЛЯ АДМІНА -->
+                    <!-- АДМІН -->
                     <Button Content="Користувачі" Command="{Binding ShowUsersCommand}" Visibility="{Binding IsAdminVisible}" Style="{StaticResource NavButtonStyle}"/>
                     <Button Content="Структура" Command="{Binding ShowStructureCommand}" Visibility="{Binding IsAdminVisible}" Style="{StaticResource NavButtonStyle}"/>
                     <Button Content="Логи" Command="{Binding ShowLogsCommand}" Visibility="{Binding IsAdminVisible}" Style="{StaticResource NavButtonStyle}"/>
 
+                    <!-- КЕРІВНИК (Статистика відділу) -->
+                    <Button Content="Статистика відділу" Command="{Binding ShowDepartmentStatsCommand}" Visibility="{Binding IsManagerVisible}" Style="{StaticResource NavButtonStyle}"/>
+
                     <!-- ДЛЯ ДИРЕКТОРА (Глобальні звіти) -->
-                    <Button Content="Глобальна статистика" Command="{Binding ShowAllRequestsCommand}" Visibility="{Binding IsDirectorVisible}" Style="{StaticResource NavButtonStyle}"/>
+                    <!-- ВИПРАВЛЕНО: Command="{Binding ShowGlobalStatsCommand}" -->
+                    <Button Content="Глобальна статистика" Command="{Binding ShowGlobalStatsCommand}" Visibility="{Binding IsDirectorVisible}" Style="{StaticResource NavButtonStyle}"/>
                 </StackPanel>
 
                 <!-- ПРОФІЛЬ -->

@@ -3,6 +3,7 @@ using Requests.Data.Models;
 using Requests.Services;
 using Requests.UI.Views;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -19,7 +20,6 @@ namespace Requests.UI.ViewModels
         private readonly EmployeeService _employeeService;
         private readonly User _currentUser;
 
-        // Master List: Співробітники
         public ObservableCollection<User> AllEmployees { get; set; }
         private User _selectedEmployee;
         public User SelectedEmployee
@@ -29,15 +29,15 @@ namespace Requests.UI.ViewModels
             {
                 _selectedEmployee = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(IsGlobalViewVisible));
+                OnPropertyChanged(nameof(IsDetailViewVisible));
                 LoadEmployeeDetails();
             }
         }
 
-        // Global Data
         public ObservableCollection<Request> GlobalRequests { get; set; }
         public ICollectionView GlobalRequestsView { get; private set; }
 
-        // Detail Data
         public ObservableCollection<Request> EmployeeRequests { get; set; }
         public ObservableCollection<DepartmentTask> EmployeeTasks { get; set; }
 
@@ -47,11 +47,45 @@ namespace Requests.UI.ViewModels
         public Visibility IsGlobalViewVisible => SelectedEmployee == null ? Visibility.Visible : Visibility.Collapsed;
         public Visibility IsDetailViewVisible => SelectedEmployee != null ? Visibility.Visible : Visibility.Collapsed;
 
+        // === ФІЛЬТРИ ===
         private string _searchText;
         public string SearchText
         {
             get => _searchText;
             set { _searchText = value; OnPropertyChanged(); GlobalRequestsView.Refresh(); }
+        }
+
+        private DateTime? _filterStartDate;
+        public DateTime? FilterStartDate
+        {
+            get => _filterStartDate;
+            set { _filterStartDate = value; OnPropertyChanged(); GlobalRequestsView.Refresh(); }
+        }
+
+        private DateTime? _filterEndDate;
+        public DateTime? FilterEndDate
+        {
+            get => _filterEndDate;
+            set { _filterEndDate = value; OnPropertyChanged(); GlobalRequestsView.Refresh(); }
+        }
+
+        public List<string> FilterStatuses { get; } = new List<string>
+        {
+            "Всі",
+            ServiceConstants.StatusNew,
+            ServiceConstants.StatusPendingApproval,
+            ServiceConstants.StatusClarification,
+            ServiceConstants.StatusInProgress,
+            ServiceConstants.StatusCompleted,
+            ServiceConstants.StatusRejected,
+            ServiceConstants.StatusCanceled
+        };
+
+        private string _selectedStatusFilter = "Всі";
+        public string SelectedStatusFilter
+        {
+            get => _selectedStatusFilter;
+            set { _selectedStatusFilter = value; OnPropertyChanged(); GlobalRequestsView.Refresh(); }
         }
 
         public ICommand BackToGlobalCommand { get; }
@@ -76,28 +110,40 @@ namespace Requests.UI.ViewModels
 
         private void LoadGlobalData()
         {
-            // Використовуємо AdminService для отримання користувачів, або через репозиторій. 
-            // Тут припускаємо, що App.CreateAdminService() доступний, або передаємо сервіс в конструктор.
-            // Для спрощення, якщо DirectorService не має методу GetAllUsers, додамо його або використаємо існуючий сервіс.
             var users = App.CreateAdminService().GetAllUsers().Where(u => u.IsActive).ToList();
             AllEmployees = new ObservableCollection<User>(users);
             OnPropertyChanged(nameof(AllEmployees));
 
             var reqs = _directorService.GetAllRequestsSystemWide().ToList();
             GlobalRequests = new ObservableCollection<Request>(reqs);
+
             GlobalRequestsView = CollectionViewSource.GetDefaultView(GlobalRequests);
-            GlobalRequestsView.Filter = o =>
-            {
-                if (string.IsNullOrEmpty(SearchText)) return true;
-                var r = o as Request;
-                return r.Title.ToLower().Contains(SearchText.ToLower()) || r.Author.FullName.ToLower().Contains(SearchText.ToLower());
-            };
+            GlobalRequestsView.Filter = FilterRequestsLogic;
 
             TotalCount = reqs.Count;
             CompletedCount = reqs.Count(r => r.GlobalStatus.Name == ServiceConstants.StatusCompleted);
 
             OnPropertyChanged(nameof(TotalCount));
             OnPropertyChanged(nameof(CompletedCount));
+        }
+
+        private bool FilterRequestsLogic(object obj)
+        {
+            if (obj is not Request r) return false;
+
+            if (!string.IsNullOrEmpty(SearchText))
+            {
+                var txt = SearchText.ToLower();
+                if (!r.Title.ToLower().Contains(txt) && !r.Author.FullName.ToLower().Contains(txt))
+                    return false;
+            }
+
+            if (FilterStartDate.HasValue && r.CreatedAt.Date < FilterStartDate.Value.Date) return false;
+            if (FilterEndDate.HasValue && r.CreatedAt.Date > FilterEndDate.Value.Date) return false;
+
+            if (SelectedStatusFilter != "Всі" && r.GlobalStatus.Name != SelectedStatusFilter) return false;
+
+            return true;
         }
 
         private void LoadEmployeeDetails()
@@ -107,14 +153,11 @@ namespace Requests.UI.ViewModels
             var reqs = _employeeService.GetMyRequests(SelectedEmployee.Id);
             EmployeeRequests = new ObservableCollection<Request>(reqs);
 
-            // Тут використовуємо ManagerService для отримання тасків.
             var tasks = App.CreateManagerService().GetAllTasksForEmployee(SelectedEmployee.Id);
             EmployeeTasks = new ObservableCollection<DepartmentTask>(tasks);
 
             OnPropertyChanged(nameof(EmployeeRequests));
             OnPropertyChanged(nameof(EmployeeTasks));
-            OnPropertyChanged(nameof(IsGlobalViewVisible));
-            OnPropertyChanged(nameof(IsDetailViewVisible));
         }
 
         private void OpenDetails(object obj)
@@ -134,19 +177,13 @@ namespace Requests.UI.ViewModels
             {
                 try
                 {
-                    // Отримуємо дані за останні 30 днів
-                    var data = _reportService.GetDirectorReportData(DateTime.Now.AddDays(-30), DateTime.Now);
+                    var start = FilterStartDate ?? DateTime.Now.AddDays(-30);
+                    var end = FilterEndDate ?? DateTime.Now;
 
-                    // Формуємо масив рядків для таблиці (3 колонки: ID, Тема, Статус)
-                    // Це відповідає структурі таблиці в ReportService.GeneratePdfReport
-                    var tableData = data.AllRequests.Select(r => new[]
-                    {
-                        r.Id.ToString(),
-                        r.Title,
-                        r.GlobalStatus.Name
-                    });
+                    var data = _reportService.GetDirectorReportData(start, end);
+                    var tableData = data.AllRequests.Select(r => new[] { r.Id.ToString(), r.Title, r.GlobalStatus.Name });
 
-                    _reportService.GeneratePdfReport(dialog.FileName, "Звіт Директора (30 днів)", tableData);
+                    _reportService.GeneratePdfReport(dialog.FileName, $"Звіт Директора ({start:dd.MM}-{end:dd.MM})", tableData);
                     MessageBox.Show("Звіт збережено успішно!");
                 }
                 catch (Exception ex)

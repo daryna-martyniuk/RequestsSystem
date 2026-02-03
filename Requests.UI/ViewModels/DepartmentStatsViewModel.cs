@@ -3,6 +3,7 @@ using Requests.Data.Models;
 using Requests.Services;
 using Requests.UI.Views;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -25,7 +26,7 @@ namespace Requests.UI.ViewModels
         public User SelectedEmployee
         {
             get => _selectedEmployee;
-            set { _selectedEmployee = value; OnPropertyChanged(); LoadEmployeeDetails(); }
+            set { _selectedEmployee = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsOverviewVisible)); OnPropertyChanged(nameof(IsDetailVisible)); LoadEmployeeDetails(); }
         }
 
         // Default Data
@@ -44,9 +45,43 @@ namespace Requests.UI.ViewModels
         public int TotalActiveTasks { get; set; }
         public int TotalDoneTasks { get; set; }
 
-        // Filters
+        // === ФІЛЬТРИ ===
         private string _searchText;
-        public string SearchText { get => _searchText; set { _searchText = value; OnPropertyChanged(); DepartmentTasksView.Refresh(); } }
+        public string SearchText
+        {
+            get => _searchText;
+            set { _searchText = value; OnPropertyChanged(); DepartmentTasksView.Refresh(); }
+        }
+
+        private DateTime? _filterStartDate;
+        public DateTime? FilterStartDate
+        {
+            get => _filterStartDate;
+            set { _filterStartDate = value; OnPropertyChanged(); DepartmentTasksView.Refresh(); }
+        }
+
+        private DateTime? _filterEndDate;
+        public DateTime? FilterEndDate
+        {
+            get => _filterEndDate;
+            set { _filterEndDate = value; OnPropertyChanged(); DepartmentTasksView.Refresh(); }
+        }
+
+        public List<string> FilterStatuses { get; } = new List<string>
+        {
+            "Всі",
+            ServiceConstants.TaskStatusNew,
+            ServiceConstants.TaskStatusInProgress,
+            ServiceConstants.TaskStatusPaused,
+            ServiceConstants.TaskStatusDone
+        };
+
+        private string _selectedStatusFilter = "Всі";
+        public string SelectedStatusFilter
+        {
+            get => _selectedStatusFilter;
+            set { _selectedStatusFilter = value; OnPropertyChanged(); DepartmentTasksView.Refresh(); }
+        }
 
         public ICommand BackCommand { get; }
         public ICommand OpenDetailsCommand { get; }
@@ -56,7 +91,6 @@ namespace Requests.UI.ViewModels
         public ICommand ForwardTaskCommand { get; }
         public ICommand RefreshCommand { get; }
 
-        // Corrected Constructor (4 arguments)
         public DepartmentStatsViewModel(ManagerService managerService, ReportService reportService, EmployeeService employeeService, User currentUser)
         {
             _managerService = managerService;
@@ -64,7 +98,9 @@ namespace Requests.UI.ViewModels
             _employeeService = employeeService;
             _currentUser = currentUser;
 
+            // Кнопка назад просто скидає виділеного працівника
             BackCommand = new RelayCommand(o => SelectedEmployee = null);
+
             OpenDetailsCommand = new RelayCommand(OpenDetails);
             GenerateReportCommand = new RelayCommand(GenerateReport);
             RefreshCommand = new RelayCommand(o => LoadData());
@@ -84,19 +120,43 @@ namespace Requests.UI.ViewModels
 
             var tasks = _managerService.GetAllTasksForDepartment(_currentUser.DepartmentId).ToList();
             AllDepartmentTasks = new ObservableCollection<DepartmentTask>(tasks);
+
             DepartmentTasksView = CollectionViewSource.GetDefaultView(AllDepartmentTasks);
-            DepartmentTasksView.Filter = o =>
-            {
-                if (string.IsNullOrEmpty(SearchText)) return true;
-                var t = o as DepartmentTask;
-                return t.Request.Title.Contains(SearchText);
-            };
+            DepartmentTasksView.Filter = FilterTasksLogic; // Підключаємо логіку фільтрації
 
             TotalActiveTasks = tasks.Count(t => t.Status.Name != ServiceConstants.TaskStatusDone);
             TotalDoneTasks = tasks.Count(t => t.Status.Name == ServiceConstants.TaskStatusDone);
 
             OnPropertyChanged(nameof(TotalActiveTasks));
             OnPropertyChanged(nameof(TotalDoneTasks));
+        }
+
+        private bool FilterTasksLogic(object obj)
+        {
+            if (obj is not DepartmentTask task) return false;
+
+            // 1. Пошук (Назва запиту або Виконавець)
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                var txt = SearchText.ToLower();
+                bool matchesTitle = task.Request.Title.ToLower().Contains(txt);
+                bool matchesExecutor = task.Executors.Any(e => e.User.FullName.ToLower().Contains(txt));
+
+                if (!matchesTitle && !matchesExecutor) return false;
+            }
+
+            // 2. Дата (AssignedAt)
+            if (FilterStartDate.HasValue && (!task.AssignedAt.HasValue || task.AssignedAt.Value.Date < FilterStartDate.Value.Date))
+                return false;
+
+            if (FilterEndDate.HasValue && (!task.AssignedAt.HasValue || task.AssignedAt.Value.Date > FilterEndDate.Value.Date))
+                return false;
+
+            // 3. Статус
+            if (SelectedStatusFilter != "Всі" && task.Status.Name != SelectedStatusFilter)
+                return false;
+
+            return true;
         }
 
         private void LoadEmployeeDetails()
@@ -111,8 +171,6 @@ namespace Requests.UI.ViewModels
 
             OnPropertyChanged(nameof(SelectedEmployeeTasks));
             OnPropertyChanged(nameof(SelectedEmployeeRequests));
-            OnPropertyChanged(nameof(IsOverviewVisible));
-            OnPropertyChanged(nameof(IsDetailVisible));
         }
 
         private void GenerateReport(object obj)
@@ -120,8 +178,12 @@ namespace Requests.UI.ViewModels
             var dialog = new SaveFileDialog { Filter = "PDF Report|*.pdf", FileName = $"DeptReport_{DateTime.Now:yyyyMMdd}" };
             if (dialog.ShowDialog() == true)
             {
-                var data = _reportService.GetManagerReportData(_currentUser.DepartmentId, DateTime.Now.AddMonths(-1), DateTime.Now);
+                var start = FilterStartDate ?? DateTime.Now.AddMonths(-1);
+                var end = FilterEndDate ?? DateTime.Now;
+
+                var data = _reportService.GetManagerReportData(_currentUser.DepartmentId, start, end);
                 var pdfData = data.Tasks.Select(t => new[] { t.Request.Title, t.Status.Name, t.AssignedAt?.ToString("d") ?? "-" });
+
                 _reportService.GeneratePdfReport(dialog.FileName, $"Звіт відділу: {_currentUser.Department.Name}", pdfData);
                 MessageBox.Show("Звіт збережено!");
             }

@@ -67,6 +67,8 @@
             <Grid Visibility="{Binding IsGlobalViewVisible}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <!-- Фільтри -->
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
@@ -86,17 +88,40 @@
                             </StackPanel>
                         </Border>
                     </StackPanel>
-
-                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" 
-                              Tag="Пошук запиту..." Width="300" HorizontalAlignment="Left" Margin="0,20,0,0"/>
                 </StackPanel>
 
-                <Border Grid.Row="1" Background="White" CornerRadius="10" Effect="{StaticResource CardShadow}" Padding="10">
+                <!-- ПАНЕЛЬ ФІЛЬТРІВ -->
+                <Border Grid.Row="1" Background="White" CornerRadius="5" Padding="10" Margin="0,0,0,15" Effect="{StaticResource CardShadow}">
+                    <WrapPanel Orientation="Horizontal">
+                        <StackPanel Margin="0,0,15,0">
+                            <TextBlock Text="Період з:" FontSize="12" Foreground="{StaticResource TextSecondary}"/>
+                            <DatePicker SelectedDate="{Binding FilterStartDate}" Width="120" Height="30"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,15,0">
+                            <TextBlock Text="по:" FontSize="12" Foreground="{StaticResource TextSecondary}"/>
+                            <DatePicker SelectedDate="{Binding FilterEndDate}" Width="120" Height="30"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,15,0">
+                            <TextBlock Text="Статус:" FontSize="12" Foreground="{StaticResource TextSecondary}"/>
+                            <ComboBox ItemsSource="{Binding FilterStatuses}" SelectedItem="{Binding SelectedStatusFilter}" Width="120" Height="30"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,15,0">
+                            <TextBlock Text="Пошук:" FontSize="12" Foreground="{StaticResource TextSecondary}"/>
+                            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Width="150" Height="30" Style="{StaticResource ModernTextBox}"/>
+                        </StackPanel>
+
+                        <Button Content="📄 Звіт Директора" Command="{Binding GenerateReportCommand}" 
+                                Style="{StaticResource ActionBtnStyle}" VerticalAlignment="Bottom" Height="30"/>
+                    </WrapPanel>
+                </Border>
+
+                <Border Grid.Row="2" Background="White" CornerRadius="10" Effect="{StaticResource CardShadow}" Padding="10">
                     <DataGrid ItemsSource="{Binding GlobalRequestsView}" AutoGenerateColumns="False" IsReadOnly="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50"/>
                             <DataGridTextColumn Header="Тема" Binding="{Binding Title}" Width="*"/>
                             <DataGridTextColumn Header="Автор" Binding="{Binding Author.FullName}" Width="150"/>
+                            <DataGridTextColumn Header="Дата" Binding="{Binding CreatedAt, StringFormat=dd.MM.yyyy}" Width="100"/>
                             <DataGridTextColumn Header="Статус" Binding="{Binding GlobalStatus.Name}" Width="120"/>
                             <DataGridTemplateColumn Header="Дії" Width="80">
                                 <DataGridTemplateColumn.CellTemplate>
