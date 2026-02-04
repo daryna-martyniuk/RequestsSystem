@@ -27,7 +27,7 @@
 
             <!-- Заголовок -->
             <StackPanel Grid.Row="0" Margin="0,0,0,20">
-                <TextBlock Text="Створення запиту" FontSize="24" FontWeight="Bold" Foreground="{StaticResource PrimaryBlue}" HorizontalAlignment="Center"/>
+                <TextBlock Text="Створення та редагування запиту" FontSize="24" FontWeight="Bold" Foreground="{StaticResource PrimaryBlue}" HorizontalAlignment="Center"/>
                 <TextBlock Text="Заповніть деталі вашого звернення" FontSize="14" Foreground="{StaticResource TextGray}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
                 <Separator Margin="0,15,0,0" Background="#F0F0F0"/>
             </StackPanel>
@@ -61,11 +61,11 @@
                     </Grid>
 
                     <!-- Дедлайн (НОВЕ) -->
-                    <TextBlock Text="Бажаний термін виконання (Дедлайн)" FontWeight="SemiBold" Foreground="{StaticResource TextDark}" Margin="0,0,0,5"/>
+                    <TextBlock Text="Бажаний термін виконання (дедлайн)" FontWeight="SemiBold" Foreground="{StaticResource TextDark}" Margin="0,0,0,5"/>
                     <DatePicker SelectedDate="{Binding Deadline}" Margin="0,0,0,15" Padding="5" Height="35" VerticalContentAlignment="Center" Background="White"/>
 
                     <!-- Кому (Відділи) -->
-                    <TextBlock Text="Виконавець (Оберіть один або кілька відділів)" FontWeight="SemiBold" Foreground="{StaticResource TextDark}" Margin="0,0,0,5"/>
+                    <TextBlock Text="Виконавець (оберіть один або кілька відділів)" FontWeight="SemiBold" Foreground="{StaticResource TextDark}" Margin="0,0,0,5"/>
                     <Border BorderBrush="#BDC3C7" BorderThickness="1" CornerRadius="5" Padding="5" Margin="0,0,0,15" Height="100">
                         <ListBox ItemsSource="{Binding Departments}" BorderThickness="0">
                             <ListBox.ItemTemplate>
@@ -114,7 +114,7 @@
                         Background="Transparent" Foreground="{StaticResource TextGray}" BorderThickness="0" 
                         FontSize="14" FontWeight="SemiBold" Padding="15,5" Cursor="Hand"/>
 
-                <Button Content="Створити запит" Command="{Binding SaveCommand}" 
+                <Button Content="Зберегти" Command="{Binding SaveCommand}" 
                         Background="{StaticResource PrimaryBlue}" Foreground="White" BorderThickness="0"
                         FontSize="14" FontWeight="Bold" Padding="30,10" Margin="15,0,0,0" Cursor="Hand">
                     <Button.Resources>

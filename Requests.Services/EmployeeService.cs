@@ -205,5 +205,26 @@ namespace Requests.Services
         {
             _commentRepository.Add(new RequestComment { RequestId = requestId, UserId = userId, CommentText = text, CreatedAt = DateTime.Now });
         }
+
+        // МЕТОД ДЛЯ ПОВТОРНОЇ ВІДПРАВКИ (після редагування)
+        public void ResubmitRequest(int requestId, Request updatedData, int userId)
+        {
+            var req = _requestRepository.GetById(requestId);
+            if (req == null) return;
+
+            // Оновлюємо поля
+            req.Title = updatedData.Title;
+            req.Description = updatedData.Description;
+            req.CategoryId = updatedData.CategoryId;
+            req.PriorityId = updatedData.PriorityId;
+            req.Deadline = updatedData.Deadline;
+
+            // Змінюємо статус на "Очікує погодження", щоб керівник знову побачив його
+            var statusPending = _statusRepository.Find(s => s.Name == ServiceConstants.StatusPendingApproval).First();
+            req.GlobalStatusId = statusPending.Id;
+
+            _requestRepository.Update(req);
+            _auditRepository.Add(new AuditLog { UserId = userId, RequestId = requestId, Action = "Resubmitted Request" });
+        }
     }
 }

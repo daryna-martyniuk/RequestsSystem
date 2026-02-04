@@ -39,17 +39,17 @@ namespace Requests.Services
             => _requestRepository.GetPendingApprovals(managerDeptId, ServiceConstants.StatusPendingApproval);
 
         public IEnumerable<Request> GetRequestsInDiscussion(int managerDeptId)
-            => _requestRepository.GetPendingApprovals(managerDeptId, ServiceConstants.StatusClarification);
+        {
+            return _requestRepository.GetByGlobalStatus(ServiceConstants.StatusClarification);
+        }
 
-        // ВИПРАВЛЕНО: Використовуємо метод з Include, щоб завантажити Request і Author
         public IEnumerable<DepartmentTask> GetIncomingTasks(int departmentId)
         {
-            // Беремо всі задачі за весь час для відділу (вони вже з Include у репозиторії)
-            // і фільтруємо лише нові
             var allTasks = _taskRepository.GetTasksForReport(departmentId, DateTime.MinValue, DateTime.MaxValue);
             return allTasks.Where(t => t.Status.Name == ServiceConstants.TaskStatusNew);
         }
 
+        // Погодження (переводить у "В роботі")
         public void ApproveRequest(int requestId, int managerId, Request requestToUpdate)
         {
             var request = _requestRepository.GetById(requestId);
@@ -65,6 +65,7 @@ namespace Requests.Services
             _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = "Approved Request" });
         }
 
+        // Відхилення
         public void RejectRequest(int requestId, int managerId, string reason)
         {
             var request = _requestRepository.GetById(requestId);
@@ -78,18 +79,52 @@ namespace Requests.Services
             _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = "Rejected Request" });
         }
 
+        // Відправка на обговорення (уточнення)
         public void SetRequestToDiscussion(int requestId, int managerId, string reason)
         {
             var request = _requestRepository.GetById(requestId);
             if (request == null) return;
+
             var statusClarification = _statusRepository.Find(s => s.Name == ServiceConstants.StatusClarification).First();
             request.GlobalStatusId = statusClarification.Id;
+
             _requestRepository.Update(request);
 
-            AddSystemComment(requestId, managerId, $"[НА ОБГОВОРЕННІ]: {reason}");
+            AddSystemComment(requestId, managerId, $"[НА УТОЧНЕННІ]: {reason}");
             _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = "Sent to Discussion" });
         }
 
+        // НОВИЙ МЕТОД: Повернення з обговорення (Завершити обговорення)
+        public void ReturnFromDiscussion(int requestId, int managerId, Request updatedRequest, string targetStatusName, string comment)
+        {
+            var request = _requestRepository.GetById(requestId);
+            if (request == null) return;
+
+            // 1. Оновлюємо дані з переданого об'єкта (щоб не перезаписати старими даними з кешу)
+            request.Title = updatedRequest.Title;
+            request.Description = updatedRequest.Description;
+            request.PriorityId = updatedRequest.PriorityId;
+            request.CategoryId = updatedRequest.CategoryId;
+            request.Deadline = updatedRequest.Deadline;
+
+            // 2. Змінюємо статус
+            var targetStatus = _statusRepository.Find(s => s.Name == targetStatusName).FirstOrDefault();
+            if (targetStatus != null)
+            {
+                request.GlobalStatusId = targetStatus.Id;
+            }
+
+            _requestRepository.Update(request);
+
+            if (!string.IsNullOrWhiteSpace(comment))
+            {
+                AddSystemComment(requestId, managerId, $"[ОБГОВОРЕННЯ ЗАВЕРШЕНО]: {comment}");
+            }
+
+            _auditRepository.Add(new AuditLog { UserId = managerId, RequestId = requestId, Action = "Discussion Finished" });
+        }
+
+        // --- Tasks ---
         public void AssignExecutor(int departmentTaskId, int executorId, int managerId)
         {
             var task = _taskRepository.GetById(departmentTaskId);
@@ -152,10 +187,6 @@ namespace Requests.Services
 
         public IEnumerable<User> GetMyEmployees(int departmentId) => _userRepository.GetByDepartment(departmentId);
         public IEnumerable<DepartmentTask> GetAllTasksForDepartment(int departmentId) => _taskRepository.GetAllTasksByDepartment(departmentId);
-
-        public IEnumerable<DepartmentTask> GetAllTasksForEmployee(int employeeId)
-        {
-            return _taskRepository.GetAllTasksByExecutor(employeeId);
-        }
+        public IEnumerable<DepartmentTask> GetAllTasksForEmployee(int employeeId) => _taskRepository.GetAllTasksByExecutor(employeeId);
     }
 }

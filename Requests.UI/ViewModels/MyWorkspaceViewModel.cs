@@ -330,26 +330,28 @@ namespace Requests.UI.ViewModels
                 catch (Exception ex) { MessageBox.Show("Помилка: " + ex.Message); }
             }
         }
-
-        // ... [Інші методи без змін] ...
         private void FinishDiscussion(object obj)
         {
             if (obj is Request req)
             {
                 var fullReq = _employeeService.GetRequestDetails(req.Id);
                 if (fullReq == null) return;
+
                 var editWindow = new CreateRequestWindow(_currentUser, _employeeService, fullReq);
                 if (editWindow.ShowDialog() == true)
                 {
+                    // ВАЖЛИВО: Отримуємо найсвіжішу версію запиту після редагування (з БД)
+                    var updatedReq = _employeeService.GetRequestDetails(req.Id);
+
                     var commentDialog = new EditNameWindow("");
                     commentDialog.Title = "Підсумок обговорення";
                     if (commentDialog.ShowDialog() == true)
                     {
                         try
                         {
-                            var updatedReq = _employeeService.GetRequestDetails(req.Id);
-                            _managerService.ApproveRequest(req.Id, _currentUser.Id, updatedReq); // Виправлено виклик
-                            MessageBox.Show("Обговорення завершено.");
+                            // Змінено статус на "Новий", щоб запит пішов у роботу (у вхідні відділів)
+                            _managerService.ReturnFromDiscussion(req.Id, _currentUser.Id, updatedReq, ServiceConstants.StatusNew, commentDialog.ResultName);
+                            MessageBox.Show("Обговорення завершено. Запит активовано (статус 'Новий').");
                             LoadData();
                         }
                         catch (Exception ex) { MessageBox.Show(ex.Message); }
@@ -357,7 +359,22 @@ namespace Requests.UI.ViewModels
                 }
             }
         }
-        private void DiscussRequest(object obj) { if (obj is Request r) { var d = new EditNameWindow(""); d.Title = "Причина"; if (d.ShowDialog() == true) { _managerService.SetRequestToDiscussion(r.Id, _currentUser.Id, d.ResultName); LoadData(); } } }
+
+
+        private void DiscussRequest(object obj)
+        {
+            if (obj is Request r)
+            {
+                var d = new EditNameWindow("");
+                d.Title = "Причина уточнення";
+                if (d.ShowDialog() == true)
+                {
+                    // Керівник відправляє на обговорення
+                    _managerService.SetRequestToDiscussion(r.Id, _currentUser.Id, d.ResultName);
+                    LoadData();
+                }
+            }
+        }
         private void CompleteTask(object obj) { if (obj is DepartmentTask t && MessageBox.Show("Виконано?", "Так", MessageBoxButton.YesNo) == MessageBoxResult.Yes) { _employeeService.UpdateTaskStatus(t.Id, _currentUser.Id, ServiceConstants.TaskStatusDone); LoadData(); } }
         private void PauseTask(object obj) { if (obj is DepartmentTask t) { _employeeService.PauseTask(t.Id, _currentUser.Id); LoadData(); } }
         private void ResumeTask(object obj) { if (obj is DepartmentTask t) { _employeeService.ResumeTask(t.Id, _currentUser.Id); LoadData(); } }
