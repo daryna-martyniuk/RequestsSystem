@@ -45,7 +45,7 @@ namespace Requests.UI.ViewModels
         public ICommand ShowStructureCommand { get; }
         public ICommand ShowLogsCommand { get; }
         public ICommand ShowDepartmentStatsCommand { get; }
-        public ICommand ShowGlobalStatsCommand { get; } // Було ShowAllRequestsCommand у старому XAML
+        public ICommand ShowGlobalStatsCommand { get; }
         public ICommand EditProfileCommand { get; }
         public ICommand LogoutCommand { get; }
 
@@ -59,17 +59,17 @@ namespace Requests.UI.ViewModels
             var repService = App.CreateReportService();
             var admService = App.CreateAdminService();
 
-            _workspaceViewModel = new MyWorkspaceViewModel(currentUser,empService);
+            _workspaceViewModel = new MyWorkspaceViewModel(currentUser, empService);
 
             if (currentUser.IsSystemAdmin)
                 _adminViewModel = new AdminViewModel(currentUser);
 
             _deptStatsViewModel = new DepartmentStatsViewModel(manService, repService, empService, currentUser);
 
-            // Створюємо завжди, якщо роль дозволяє (або навіть завжди, щоб уникнути null, пам'ять не критична тут)
+            // ВИПРАВЛЕНО: Передаємо manService для доступу до DiscussRequest
             if (IsDirectorVisible == Visibility.Visible)
             {
-                _globalStatsViewModel = new GlobalStatsViewModel(dirService, repService, empService, currentUser);
+                _globalStatsViewModel = new GlobalStatsViewModel(dirService, repService, empService, manService, currentUser);
             }
 
             ShowWorkspaceCommand = new RelayCommand(o => CurrentView = _workspaceViewModel);
@@ -80,7 +80,6 @@ namespace Requests.UI.ViewModels
 
             ShowDepartmentStatsCommand = new RelayCommand(o => CurrentView = _deptStatsViewModel);
 
-            // Тут прив'язка до змінної
             ShowGlobalStatsCommand = new RelayCommand(o =>
             {
                 if (_globalStatsViewModel != null)

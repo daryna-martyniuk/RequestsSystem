@@ -3,7 +3,6 @@ using Requests.Data.Models;
 using Requests.Services;
 using Requests.UI.Views;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -18,6 +17,7 @@ namespace Requests.UI.ViewModels
         private readonly DirectorService _directorService;
         private readonly ReportService _reportService;
         private readonly EmployeeService _employeeService;
+        private readonly ManagerService _managerService; // Додано
         private readonly User _currentUser;
 
         public ObservableCollection<User> AllEmployees { get; set; }
@@ -69,7 +69,7 @@ namespace Requests.UI.ViewModels
             set { _filterEndDate = value; OnPropertyChanged(); GlobalRequestsView.Refresh(); }
         }
 
-        public List<string> FilterStatuses { get; } = new List<string>
+        public System.Collections.Generic.List<string> FilterStatuses { get; } = new System.Collections.Generic.List<string>
         {
             "Всі",
             ServiceConstants.StatusNew,
@@ -92,22 +92,26 @@ namespace Requests.UI.ViewModels
         public ICommand OpenDetailsCommand { get; }
         public ICommand RefreshCommand { get; }
         public ICommand GenerateReportCommand { get; }
-        public ICommand ClearFiltersCommand { get; }
+        public ICommand DiscussRequestCommand { get; } // НОВА КОМАНДА
 
-        public GlobalStatsViewModel(DirectorService directorService, ReportService reportService, EmployeeService employeeService, User currentUser)
+        public GlobalStatsViewModel(
+            DirectorService directorService,
+            ReportService reportService,
+            EmployeeService employeeService,
+            ManagerService managerService, // Додано в конструктор
+            User currentUser)
         {
             _directorService = directorService;
             _reportService = reportService;
             _employeeService = employeeService;
+            _managerService = managerService;
             _currentUser = currentUser;
 
             BackToGlobalCommand = new RelayCommand(o => SelectedEmployee = null);
             OpenDetailsCommand = new RelayCommand(OpenDetails);
             RefreshCommand = new RelayCommand(o => LoadGlobalData());
             GenerateReportCommand = new RelayCommand(GenerateReport);
-
-            ClearFiltersCommand = new RelayCommand(o => { SearchText = ""; FilterStartDate = null; FilterEndDate = null; SelectedStatusFilter = "Всі"; });
-
+            DiscussRequestCommand = new RelayCommand(DiscussRequest);
 
             LoadGlobalData();
         }
@@ -174,10 +178,25 @@ namespace Requests.UI.ViewModels
             }
         }
 
+        // НОВИЙ МЕТОД ОБГОВОРЕННЯ
+        private void DiscussRequest(object obj)
+        {
+            if (obj is Request r)
+            {
+                var d = new EditNameWindow("");
+                d.Title = "Причина уточнення";
+                if (d.ShowDialog() == true)
+                {
+                    _managerService.SetRequestToDiscussion(r.Id, _currentUser.Id, d.ResultName);
+                    MessageBox.Show("Запит винесено на обговорення.");
+                    LoadGlobalData(); // Оновлюємо список
+                }
+            }
+        }
+
         private void GenerateReport(object obj)
         {
-            // DOCX/PDF
-            var dialog = new SaveFileDialog { Filter = "PDF Report|*.pdf|Word Document|*.docx", FileName = $"Director_Report_{DateTime.Now:yyyyMMdd}" };
+            var dialog = new SaveFileDialog { Filter = "PDF Report|*.pdf", FileName = $"Director_Report_{DateTime.Now:yyyyMMdd}" };
             if (dialog.ShowDialog() == true)
             {
                 try
@@ -185,16 +204,10 @@ namespace Requests.UI.ViewModels
                     var start = FilterStartDate ?? DateTime.Now.AddDays(-30);
                     var end = FilterEndDate ?? DateTime.Now;
 
-                    // Отримуємо відфільтровані запити з View
                     var filteredRequests = GlobalRequestsView.Cast<Request>();
-
                     var data = _reportService.GetDirectorReportData(filteredRequests, start, end);
 
-                    if (dialog.FilterIndex == 1)
-                        _reportService.GenerateDirectorPdf(dialog.FileName, data);
-                    else
-                        _reportService.GenerateDirectorDocx(dialog.FileName, data);
-
+                    _reportService.GenerateDirectorPdf(dialog.FileName, data);
                     MessageBox.Show("Звіт збережено успішно!");
                 }
                 catch (Exception ex)

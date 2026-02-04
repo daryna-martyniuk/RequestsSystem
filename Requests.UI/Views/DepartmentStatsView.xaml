@@ -6,7 +6,6 @@
              mc:Ignorable="d" 
              d:DesignHeight="700" d:DesignWidth="1100">
     <UserControl.Resources>
-        <!-- Стиль для широких вкладок (як у MyWorkspaceView) -->
         <Style TargetType="TabItem" BasedOn="{StaticResource ModernTabItemStyle}">
             <Setter Property="MinWidth" Value="220"/>
             <Setter Property="Padding" Value="15,10"/>
@@ -20,7 +19,6 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- ЛІВА ПАНЕЛЬ: СПИСОК ПІДЛЕГЛИХ -->
         <Border Grid.Column="0" Background="White" CornerRadius="10" Effect="{StaticResource CardShadow}" Margin="0,0,20,0" Padding="15">
             <Grid>
                 <Grid.RowDefinitions>
@@ -28,7 +26,6 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 <TextBlock Text="Моя Команда" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" Foreground="{StaticResource TextPrimary}"/>
-
                 <ListBox Grid.Row="1" ItemsSource="{Binding Employees}" SelectedItem="{Binding SelectedEmployee}" BorderThickness="0">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
@@ -64,19 +61,13 @@
             </Grid>
         </Border>
 
-        <!-- ПРАВА ПАНЕЛЬ -->
         <Grid Grid.Column="1">
-
-            <!-- ОГЛЯД ВІДДІЛУ (ВСІ ЗАВДАННЯ) - Видно, коли SelectedEmployee == null -->
             <Grid Visibility="{Binding IsOverviewVisible}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <!-- Фільтри -->
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-
-                <!-- Хедер і KPI -->
                 <StackPanel Grid.Row="0" Margin="0,0,0,15">
                     <TextBlock Text="Статистика відділу" FontSize="26" FontWeight="Bold" Foreground="{StaticResource TextPrimary}"/>
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
@@ -89,77 +80,79 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- ПАНЕЛЬ ФІЛЬТРІВ (Вирівняно рівномірно) -->
                 <Border Grid.Row="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,15" Effect="{StaticResource CardShadow}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
-                            <!-- Період з -->
                             <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="*"/>
-                            <!-- Період по -->
                             <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="*"/>
-                            <!-- Статус -->
                             <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="1.5*"/>
-                            <!-- Пошук (трохи ширше) -->
                             <ColumnDefinition Width="5"/>
                             <ColumnDefinition Width="Auto"/>
-                            <!-- Кнопка очищення -->
                             <ColumnDefinition Width="15"/>
                             <ColumnDefinition Width="Auto"/>
-                            <!-- Кнопка звіту -->
                         </Grid.ColumnDefinitions>
-
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="Період з:" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,5"/>
                             <DatePicker SelectedDate="{Binding FilterStartDate}" Height="35" HorizontalAlignment="Stretch"/>
                         </StackPanel>
-
                         <StackPanel Grid.Column="2">
                             <TextBlock Text="по:" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,5"/>
                             <DatePicker SelectedDate="{Binding FilterEndDate}" Height="35" HorizontalAlignment="Stretch"/>
                         </StackPanel>
-
                         <StackPanel Grid.Column="4">
                             <TextBlock Text="Статус:" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,5"/>
                             <ComboBox ItemsSource="{Binding FilterStatuses}" SelectedItem="{Binding SelectedStatusFilter}" Height="35" HorizontalAlignment="Stretch" Padding="5"/>
                         </StackPanel>
-
                         <StackPanel Grid.Column="6">
                             <TextBlock Text="Пошук:" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,5"/>
                             <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Height="35" Style="{StaticResource ModernTextBox}"/>
                         </StackPanel>
-
-                        <!-- Кнопка очищення фільтрів -->
-                        <Button Grid.Column="8" Content="✕" Command="{Binding ClearFiltersCommand}" 
-                                Style="{StaticResource NavButtonStyle}" ToolTip="Скинути фільтри" 
-                                VerticalAlignment="Bottom" Height="35" Margin="0,0,0,0"/>
-
-                        <Button Grid.Column="10" Content="📊 Звіт Відділу" Command="{Binding GenerateReportCommand}" 
-                                Style="{StaticResource ActionBtnStyle}" Height="35" VerticalAlignment="Bottom"/>
+                        <Button Grid.Column="8" Content="✕" Command="{Binding ClearFiltersCommand}" Style="{StaticResource NavButtonStyle}" ToolTip="Скинути фільтри" VerticalAlignment="Bottom" Height="35" Margin="0,0,0,0"/>
+                        <Button Grid.Column="10" Content="📊 Звіт Відділу" Command="{Binding GenerateReportCommand}" Style="{StaticResource ActionBtnStyle}" Height="35" VerticalAlignment="Bottom"/>
                     </Grid>
                 </Border>
 
-                <!-- Вкладки: Завдання та Запити відділу -->
                 <TabControl Grid.Row="2">
                     <TabItem Header="Всі завдання">
                         <Border Background="White" CornerRadius="10" Effect="{StaticResource CardShadow}" Padding="10" Margin="0,10,0,0">
                             <DataGrid ItemsSource="{Binding DepartmentTasksView}" AutoGenerateColumns="False" IsReadOnly="True">
                                 <DataGrid.Columns>
-                                    <!-- ID видалено, як ви просили -->
                                     <DataGridTextColumn Header="Запит" Binding="{Binding Request.Title}" Width="*"/>
                                     <DataGridTextColumn Header="Статус" Binding="{Binding Status.Name}" Width="120"/>
                                     <DataGridTextColumn Header="Дата" Binding="{Binding AssignedAt, StringFormat=dd.MM.yyyy}" Width="100"/>
                                     <DataGridTextColumn Header="Виконавець" Binding="{Binding Executors[0].User.FullName, TargetNullValue='-'}" Width="150"/>
 
-                                    <DataGridTemplateColumn Header="Дії" Width="140">
+                                    <DataGridTemplateColumn Header="Дії" Width="180">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <StackPanel Orientation="Horizontal">
                                                     <Button Content="👁" Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource ActionIconBtnStyle}" Background="{StaticResource TextSecondary}"/>
                                                     <Button Content="👤" Command="{Binding DataContext.AssignExecutorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource ActionIconBtnStyle}" Background="{StaticResource PrimaryBlue}"/>
+
+                                                    <!-- Кнопка Обговорити -->
+                                                    <Button Content="💬" Command="{Binding DataContext.DiscussTaskCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" ToolTip="Обговорити">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button" BasedOn="{StaticResource ActionIconBtnStyle}">
+                                                                <Setter Property="Background" Value="#8E44AD"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Request.GlobalStatus.Name}" Value="На уточненні">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Request.GlobalStatus.Name}" Value="Завершено">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Request.GlobalStatus.Name}" Value="Скасовано">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+
                                                     <Button Content="⏸" Command="{Binding DataContext.PauseTaskCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource ActionIconBtnStyle}" Background="#E67E22"/>
                                                     <Button Content="➤" Command="{Binding DataContext.ForwardTaskCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource ActionIconBtnStyle}" Background="#9B59B6"/>
                                                 </StackPanel>
@@ -170,18 +163,14 @@
                             </DataGrid>
                         </Border>
                     </TabItem>
-
-                    <!-- Тут можна додати вкладку "Всі запити відділу", якщо потрібно -->
                 </TabControl>
             </Grid>
 
-            <!-- ДЕТАЛІ СПІВРОБІТНИКА - Видно, коли SelectedEmployee != null -->
             <Grid Visibility="{Binding IsDetailVisible}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-
                 <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,20">
                     <Button Content="⬅ Назад" Command="{Binding BackCommand}" Style="{StaticResource ActionBtnStyle}" Background="{StaticResource TextSecondary}" Margin="0,0,20,0"/>
                     <TextBlock Text="{Binding SelectedEmployee.FullName}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextPrimary}"/>
@@ -193,10 +182,31 @@
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Запит" Binding="{Binding Request.Title}" Width="*"/>
                                 <DataGridTextColumn Header="Статус" Binding="{Binding Status.Name}" Width="120"/>
-                                <DataGridTemplateColumn Header="Дії" Width="50">
+                                <DataGridTemplateColumn Header="Дії" Width="80">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Button Content="👁" Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource ActionIconBtnStyle}" Background="{StaticResource TextSecondary}"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="👁" Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource ActionIconBtnStyle}" Background="{StaticResource TextSecondary}"/>
+                                                <!-- Кнопка Обговорити -->
+                                                <Button Content="💬" Command="{Binding DataContext.DiscussTaskCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" ToolTip="Обговорити">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource ActionIconBtnStyle}">
+                                                            <Setter Property="Background" Value="#8E44AD"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Request.GlobalStatus.Name}" Value="На уточненні">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Request.GlobalStatus.Name}" Value="Завершено">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Request.GlobalStatus.Name}" Value="Скасовано">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </StackPanel>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
@@ -208,10 +218,31 @@
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Тема" Binding="{Binding Title}" Width="*"/>
                                 <DataGridTextColumn Header="Статус" Binding="{Binding GlobalStatus.Name}" Width="120"/>
-                                <DataGridTemplateColumn Header="Дії" Width="60">
+                                <DataGridTemplateColumn Header="Дії" Width="80">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Button Content="👁" Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource ActionIconBtnStyle}" Background="{StaticResource TextSecondary}"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="👁" Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource ActionIconBtnStyle}" Background="{StaticResource TextSecondary}"/>
+                                                <!-- Кнопка Обговорити -->
+                                                <Button Content="💬" Command="{Binding DataContext.DiscussRequestCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" ToolTip="Обговорити">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource ActionIconBtnStyle}">
+                                                            <Setter Property="Background" Value="#8E44AD"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding GlobalStatus.Name}" Value="На уточненні">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding GlobalStatus.Name}" Value="Завершено">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding GlobalStatus.Name}" Value="Скасовано">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </StackPanel>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>

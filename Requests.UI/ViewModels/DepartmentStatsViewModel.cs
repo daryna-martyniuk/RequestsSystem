@@ -91,6 +91,8 @@ namespace Requests.UI.ViewModels
         public ICommand ForwardTaskCommand { get; }
         public ICommand RefreshCommand { get; }
         public ICommand ClearFiltersCommand { get; }
+        public ICommand DiscussTaskCommand { get; }
+        public ICommand DiscussRequestCommand { get; }
 
         public DepartmentStatsViewModel(ManagerService managerService, ReportService reportService, EmployeeService employeeService, User currentUser)
         {
@@ -109,6 +111,9 @@ namespace Requests.UI.ViewModels
             AssignExecutorCommand = new RelayCommand(AssignExecutor);
             PauseTaskCommand = new RelayCommand(PauseTask);
             ForwardTaskCommand = new RelayCommand(ForwardTask);
+
+            DiscussTaskCommand = new RelayCommand(DiscussTask);
+            DiscussRequestCommand = new RelayCommand(DiscussRequest);
 
             ClearFiltersCommand = new RelayCommand(o => { SearchText = ""; FilterStartDate = null; FilterEndDate = null; SelectedStatusFilter = "Всі"; });
 
@@ -232,6 +237,38 @@ namespace Requests.UI.ViewModels
             {
                 var win = new SelectUserWindow(Employees);
                 if (win.ShowDialog() == true) { _managerService.AssignExecutor(t.Id, win.SelectedUser.Id, _currentUser.Id); LoadData(); }
+            }
+        }
+
+        private void DiscussTask(object obj)
+        {
+            if (obj is DepartmentTask t)
+            {
+                var d = new EditNameWindow("");
+                d.Title = "Причина уточнення";
+                if (d.ShowDialog() == true)
+                {
+                    _managerService.SetRequestToDiscussion(t.RequestId, _currentUser.Id, d.ResultName);
+                    MessageBox.Show("Запит винесено на обговорення.");
+                    LoadData();
+                    if (SelectedEmployee != null) LoadEmployeeDetails();
+                }
+            }
+        }
+
+        private void DiscussRequest(object obj)
+        {
+            if (obj is Request r)
+            {
+                var d = new EditNameWindow("");
+                d.Title = "Причина уточнення";
+                if (d.ShowDialog() == true)
+                {
+                    _managerService.SetRequestToDiscussion(r.Id, _currentUser.Id, d.ResultName);
+                    MessageBox.Show("Запит винесено на обговорення.");
+                    LoadData();
+                    if (SelectedEmployee != null) LoadEmployeeDetails();
+                }
             }
         }
     }
